@@ -1,141 +1,109 @@
-# 2022-11-29
-## Changes
-* Upgraded to Netcode for Entities 1.0.0 prerelease version, see the [Netcode for Entities changelog](https://docs.unity3d.com/Packages/com.unity.netcode@1.0/changelog/CHANGELOG.html).
-* Added HelloNetcode suite of samples, these samples aim to be small, simple and show features in isolation. Later samples then re-use earlier ones so it's simpler to see exactly what's being shown.
-* LagCompensation sample was moved to HelloNetcode/Intermediate/HitScanWeapon
-* BootstapAndFrontend was moved to HelloNetcode/Basic/BootstrapAndFrontend and also split there into frontend (client only) and bootstrap (Client+Server) assemblies.
+# Changelog
 
-# 2022-10-18
-## Changes
-* Upgraded to Netcode for Entities 1.0.0-exp.8, see the [Netcode for Entities changelog](https://docs.unity3d.com/Packages/com.unity.netcode@1.0/changelog/CHANGELOG.html).
-* Added a player list sample
+## [1.12.0] - 2026-02-12
 
-# 2022-03-18
-## Changes
-* Upgraded to Netcode for Entities 0.50.0, see the [Netcode for Entities changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.50/changelog/CHANGELOG.html).
-* Added a sample for prediction switching.
-* Added a frontend sample, it is used for standalone builds and can launch all other samples in client-only or client/server mode.
-* Modified asteroids to use the Hybrid Renderer package.
-* Removed the transport samples.
+### Changed
+- Update of multiplayer services package to 1.2.0 and other dependencies updates
+- Frontend menu to now support using sessions (Multiplayer SDK), by default when using host migration or relay support it will require using the session method. This is far simpler than implementing these features manually.
+- `01b_RelaySupport` and `01d_HostMigration` samples now include their own frontend implementation and are independent of the default frontend.
+- Updated public sample support for latest Netcode for Entities package (1.12.0)
+- Included new Netcode Profiler by default (it replaces the old network web-based debugger and is more powerful and useful for debugging and optimizing your netcode project)
 
-# 2021-01-28
-## Changes
-* Upraded Unity NetCode to 0.6.0, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.6/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.6.0 see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.6/changelog/CHANGELOG.html)
-* Brought back the custom 2d serialization rules for translation and rotation in asteroids.
+## [1.9.1] - 2025-10-11
 
-# 2020-09-17
-## Changes
-* Upraded Unity NetCode to 0.4.0, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.4/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.4.1 see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.4/changelog/CHANGELOG.html)
-* Upgraded all NetCode samples to use subscenes instead of ConvertToEntity. This means you now have to use the files in BuildSettings to make a standalone build.
-* Upgraded all samples to use SystemBase and most of them to use Entities.ForEach.
+### Fixed
+- Issue in host migration sample where the migration update data didn't update/compress properly when hosting a game, leaving and then re-hosting.
+- Issue in connection approval sample when going through relay.
 
-# 2020-08-21
-## Changes
-* Upraded Unity NetCode to 0.3.0, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.3/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.4.0 see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.4/changelog/CHANGELOG.html)
-* Added a new sample showing how to write custom network interfaces in the transport.
-* Added support for switching between fixed and dynamic timestep in asteroids.
-* Added a relevancy implementation to asteroids which can be used to only show ghosts within a specific radius of the player ship.
-* Added a mode to asteroids which uses the new static optimization mode along with moving some calculations to the client for a massive bandwidth optimization.
-* Rewrote predictive spawning of projectiles and "on spawn" handling in asteroids to be compatible with the new NetCode package.
+## [1.9.0] - 2025-09-13
 
-# 2020-06-09
-## Changes
-* Upgraded Unity NetCode to 0.2.0, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.2/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.3.1 see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.3/changelog/CHANGELOG.html)
+### Added
+- Added debug level logging in hello netcode samples for better following input handling and spawning.
 
-# 2020-02-24
-## Changes
-* Upgraded Unity NetCode to 0.1.0, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.1/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.3.0, see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.3/changelog/CHANGELOG.html)
-* Added new sample demonstrating lag compensation.
+### Fixed
+- Issue in `Asteroids` where the `AsteroidScore` ghost was being stripped out of builds.
+- Issue with `ShipTrackingSystem.ShipTrackingJob` where it iterated over all entities in the game, rather than once.
 
-# 2019-12-17
-## Changes
-* Upgraded Unity NetCode to 0.0.4, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.0/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.2.3, see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.2/changelog/CHANGELOG.html)
-* Reduced maximum number of lines rendered in asteroids and added simple culling.
+### Host Migration (HelloNetcode)
 
-# 2019-12-06
-## Changes
-* Upgraded Unity NetCode to 0.0.3, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.0/changelog/CHANGELOG.html)
-* Upgraded Unity Transport to 0.2.2, see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.2/changelog/CHANGELOG.html)
-* Upgraded Entities to 0.3.0
+#### Changes
+- In `Asteroids` removed the server-only player color tracking system. Now the colors are again mapped to the network ID like before and these are properly migrated. One side effect is that when the client which was the previous host reconnects he'll not be detected as a reconnection anymore if the client world has been destroyed (like when returning to main menu).
 
-# 2019-11-29
-## New features
-* Unity Transport is a package, see the [Unity Transport changelog](https://docs.unity3d.com/Packages/com.unity.transport@0.2/changelog/CHANGELOG.html) for details.
-* Unity NetCode is a package, see the [Unity NetCode changelog](https://docs.unity3d.com/Packages/com.unity.netcode@0.0/changelog/CHANGELOG.html) for details.
-* Added a new sample - NetCube - used in the Unite presentation about netcode.
-* Removed Matchmaking, SQP and related samples.
+#### Fixed
+- Issue where reconnected player were not detected properly and got duplicate spawns in the `PlayerSpawn` sample and those who derive from it.
+- Issue with double amount of barrels spawning in `Importance` sample after a migration.
+- Possible crash when waiting for the relay join code to arrive (server world can disappear).
+- Issue with UTC time being used in lobby migration data but not in local time
 
-# 2019-07-17
-## New features
-* Added a prefab based workflow for specifying ghosts. A prefab can contain a `GhostAuthoringComponent` which is used to generate code for a ghost. A `GhostPrefabAuthoringComponent` can be used to instantiate the prefab when spawning ghosts on the client. This replaces the .ghost files, all projects need to be updated to the new ghost definitions.
-* Added `ConvertToClientServerEntity` which can be used instead of `ConvertToEntity` to target the client / server worlds in the conversion workflow.
-* Added a `ClientServerSubScene` component which can be used together with `SubScene` to trigger sub-scene streaming in the client/ server worlds.
-* Added a new *Ping-Multiplay* sample based on the *Ping* sample
-    * Created to be the main sample for demonstrating Multiplay compatibility and best practices (SQP usage, IP binding, etc.)
-    * Contains both client and server code.  Additional details in readme in `/Assets/Samples/Ping-Multiplay/`.
-* **DedicatedServerConfig**: added arguments for `-fps` and `-timeout`
-* **NetworkEndPoint**: Added a `TryParse()` method which returns false if parsing fails
-    * Note: The `Parse()` method returns a default IP / Endpoint if parsing fails, but a method that could report failure was needed for the Multiplay sample
-* **CommandLine**:
-    * Added a `HasArgument()` method which returns true if an argument is present
-    * Added a `PrintArgsToLog()` method which is a simple way to print launch args to logs
-    * Added a `TryUpdateVariableWithArgValue()` method which updates a ref var only if an arg was found and successfully parsed
+## [1.8.0] - 2025-08-17
 
-## Changes
-* Changed the default behavior for systems in the default groups to be included in the client and server worlds unless they are marked with `[NotClientServerSystem]`. This makes built-in systems work in multiplayer projects.
-* Deleted existing SQP code and added reference to SQP Package (now in staging)
-* Removed SQP server usage from basic *Ping* sample
-    * Note: The SQP server was only needed for Multiplay compatibility, so the addition of *Ping-Multiplay* allowed us to remove SQP from *Ping*
-* Made standalone player use the same network simulator settings as the editor when running a development player
-* Made the Server Build option (UNITY_SERVER define) properly set up the right worlds for a dedicated server setup. Setting UNITY_CLIENT in the player settings define results in a client only build being made.
-* Debugger now shows all running servers and clients.
+### Changed
+- Improvements to importance system in `Asteroids`.
+- Improvements to the `Optimization` sample.
+- Big overhaul done on the `Importance` sample, use with the new `Importance Visualizer` in the Netcode for Entities package.
 
-## Fixes
-* Change `World.Active` to the executing world when updating systems.
-* Improve time calculations between client and server.
-* **DedicatedServerConfig**: Vsync is now disabled programmatically if requesting an FPS different from the current screen refresh rate
-## Upgrade guide
-All ghost definitions specified in .ghost files needs to be converted to prefabs. Create a prefab containing a `GhostAuthoringComponent` and authoring components for all required components. Use the `GhostAuthoringComponent` to update the component list and generate code.
+### Fixed
+- In `Asteroids` properly apply the bullet scale from the prefab.
 
-# 2019-06-05
-## New features
-* Added support systems for prediction and spawn prediction in the NetCode. These can be used to implement client-side prediction for networked objects.
-* Added some support for generating the code required for replicated objects in the NetCode.
-* Generalized input handling in the NetCode.
-* New fixed timestep code custom for multiplayer worlds.
-## Changes
-* Split the NetCode into a separate assembly and improved the folder structure to make it easier to use it in other projects.
-* Split the Asteroids sample into separate assemblies for client, server and mixed so it is easier to build dedicated servers without any client-side code.
-* Moved MatchMaking to a package and supporting code to a separate folder.
-* Upgraded Entities to preview 33.
-## Fixes
-* Fixed an issue with the reliable pipeline not resending when completely idle.
-## Upgrade guide
 
-# 2019-04-16
-## New features
-* Added network pipelines to enable processing of outgoing and incomming packets. The available pipeline stages are `ReliableSequencedPipelineStage` for reliable UDP messages and `SimulatorPipelineStage` for emulating network conditions such as high latency and packet loss. See [the pipeline documentation](com.unity.transport/Documentation~/pipelines-usage.md) for more information.
-* Added reading and writing of packed signed and unsigned integers to `DataStream`. These new methods use huffman encoding to reduce the size of transfered data for small numbers.
-* Added a new sample asteroids game which we will be using to develop the new netcode.
-## Changes
-* Update to Unity.Entities preview 26
-* Enable Burst compilation for most jobs
-* Made it possible to get the remote endpoint for a connection
-* Replacing EndPoint parsing with custom code to avoid having a dependency on System.Net
-* Change the ping sample command-line parameters for server to -port and -query_port
-* For matchmaking - use an Assignment object containing the ConnectionString, the Roster, and an AssignmentError string instead of just the ConnectionString.
-## Fixes
-* Fixed an issue with building iOS on Windows
-* Fixed inconsistent error handling between platforms when the network buffer is full
-## Upgrade guide
-Unity 2019.1 is now required.
+## [1.7.0] - 2025-07-29
 
-`BasicNetworkDriver` has been renamed to `GenericNetworkDriver` and a new `UdpNetworkDriver` helper class is also available.
+### Fixed
+- Issue in the frontend where the selected sample would not be saved between sessions (always picked the first one in the Samples or HelloNetcode lists)
 
-System.Net EndPoints can no longer be used as addresses, use the new NetworkEndpoint struct instead.
+### Relay Support (HelloNetcode)
+
+#### Changed
+- When a join code has been entered the hosting button is disabled
+
+#### Fixed
+- Message is now printed to the UI field when no join code is present when pressing join button
+- When join button is pressed with an empty field, it no longer tries to immediately join when you start entering the join code (now properly resets state)
+- Issue where you could not host or join a second time after going back to the frontend menu
+- Failure in `ConnectionApproval` sample when running via relay
+
+
+## [1.6.2] - 2025-07-07
+
+### Added
+- Preserialization test with a custom template added to the project.
+
+
+## [1.6.1] - 2025-05-28
+
+### Fixed
+- Issues with the relay sample and the WebGL platform target not working properly together.
+
+### Asteroids
+
+### Changed
+- Improved relevancy and importance scaling implementation, increase asteroid count from 200 to 800
+- Improved the `AsteroidScore` and collision handling.
+
+### Host migration (HelloNetcode)
+
+#### Changed
+- Added test/debug toggle to manually fail a host migration when elected as host
+- Updated for API changes in Netcode for Entities 1.6.1, added `ENABLE_HOST_MIGRATION` define to player settings to enable the host migration feature
+
+#### Fixed
+- Fixed case where a client joins while a host migration is in progress, but the new host fails to become a host, then the client might be elected as the new host, but it would be in the middle of the join-as-client flow and have no client world or scenes loaded yet. 
+
+
+## [1.5.0] - 2025-04-22
+
+### Added
+
+### Changed
+- Modified `LoadScenes_AllScenesShouldConnect` test to spam the reconnect button, to place more burden on the correctness of Netcode for Entities (and each samples) reconnect flows.
+- Cleaned up some constantly changing meta files.
+- Removed the duplicate Asteroids scene.
+- Fixed issue in the `ConnectionApproval` sample, where disconnecting would not stop the sending of the RPC, leading to an RPC warning when reconnecting. Ditto for `PlayerList` and RPC samples.
+- Updated `SceneLoading` tests to use `AutomaticThinClientWorldsUtility`.
+- Stop including `DisableBootstrap` scene in the sample selection dropdown.
+- Switch to using Multiplayer SDK instead of relay package.
+- `GhostPredictionSwitchingSystemForThinClient` is no longer needed (netcode does not require it).
+
+### Fixed
+- Issues with `PredictedSpawning` classification system.
+- Issues with particles in the `MultyPhysicsWorld` sample

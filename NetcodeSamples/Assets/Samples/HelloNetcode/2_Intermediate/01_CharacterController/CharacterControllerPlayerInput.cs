@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
@@ -15,6 +16,9 @@ namespace Samples.HelloNetcode
         [GhostField] public InputEvent SecondaryFire;
         [GhostField] public float Pitch;
         [GhostField] public float Yaw;
+
+        /// <summary>Implemented to get better packet dump info.</summary>
+        public FixedString512Bytes ToFixedString() => $"move({Movement}, j:{Jump.Count}), shoot(p:{PrimaryFire.Count}, s{SecondaryFire.Count}), mouse(pitch:{Pitch}, yaw:{Yaw})";
     }
 
     [UpdateInGroup(typeof(HelloNetcodeInputSystemGroup))]
@@ -29,12 +33,10 @@ namespace Samples.HelloNetcode
             state.RequireForUpdate<CharacterControllerPlayerInput>();
             state.RequireForUpdate<NetworkStreamInGame>();
         }
-        public void OnDestroy(ref SystemState state)
-        {
-        }
-
         public void OnUpdate(ref SystemState state)
         {
+            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+            var netDebug = SystemAPI.GetSingleton<NetDebug>();
             foreach (var input in SystemAPI.Query<RefRW<CharacterControllerPlayerInput>>().WithAll<GhostOwnerIsLocal>())
             {
                 input.ValueRW.Movement = default;
@@ -59,18 +61,23 @@ namespace Samples.HelloNetcode
                     input.ValueRW.Jump.Set();
                 m_WasJumpTouch = jumpTouch;
 
-                var lookDelta = new float2(0,0);
+                float2 lookDelta = float2.zero;
                 if (TouchInput.GetKey(TouchInput.KeyCode.RightStick))
                 {
                     lookDelta = TouchInput.GetStick(TouchInput.StickCode.RightStick) * SystemAPI.Time.DeltaTime;
                 }
-                #if !UNITY_IOS && !UNITY_ANDROID
+#if !UNITY_IOS && !UNITY_ANDROID
                 else
                 {
-                    lookDelta = new float2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
+                    lookDelta = new float2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+                    // You'll want to expose userSpecifiedMouseSensitivity in your games UI.
+                    // The server doesn't need to know about it.
+                    // Example valid range: 0.002 - 0.4.
+                    const float userSpecifiedMouseSensitivity = .04f;
+                    lookDelta *= userSpecifiedMouseSensitivity;
                 }
-                #endif
-                input.ValueRW.Pitch = math.clamp(input.ValueRW.Pitch+lookDelta.y, -math.PI/4, math.PI/4);
+#endif
+                input.ValueRW.Pitch = math.clamp(input.ValueRW.Pitch+lookDelta.y, -math.PI/2, math.PI/2);
                 input.ValueRW.Yaw = math.fmod(input.ValueRW.Yaw + lookDelta.x, 2*math.PI);
 
                 var fireTouch = TouchInput.GetKey(TouchInput.KeyCode.Left);
@@ -82,6 +89,10 @@ namespace Samples.HelloNetcode
                     )
                 {
                     input.ValueRW.PrimaryFire.Set();
+                    if (netDebug.LogLevel == NetDebug.LogLevelType.Debug)
+                    {
+                        netDebug.DebugLog($"[{state.WorldUnmanaged.Name}] PrimaryFire on tick:{networkTime.ServerTick.ToFixedString()}, fr:{Time.frameCount}!");
+                    }
                 }
                 if ((secondaryFireTouch && !m_WasSecondaryFireTouch)
                 #if !UNITY_IOS && !UNITY_ANDROID
@@ -90,6 +101,10 @@ namespace Samples.HelloNetcode
                     )
                 {
                     input.ValueRW.SecondaryFire.Set();
+                    if (netDebug.LogLevel == NetDebug.LogLevelType.Debug)
+                    {
+                        netDebug.DebugLog($"[{state.WorldUnmanaged.Name}] SecondaryFire on tick:{networkTime.ServerTick.ToFixedString()}, fr:{Time.frameCount}!");
+                    }
                 }
                 m_WasFireTouch = fireTouch;
                 m_WasSecondaryFireTouch = secondaryFireTouch;

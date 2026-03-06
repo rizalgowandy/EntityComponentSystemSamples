@@ -7,7 +7,6 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.PerformanceTesting;
 using UnityEngine;
-using UnityMesh = UnityEngine.Mesh;
 
 namespace Unity.Physics.Tests.Collision.Colliders
 {
@@ -29,7 +28,7 @@ namespace Unity.Physics.Tests.Collision.Colliders
             }
 
             // collect the inputs to use from a dense mesh asset
-            var mesh = Resources.Load<UnityMesh>("VolcanicTerrain_80000");
+            var mesh = Resources.Load<UnityEngine.Mesh>("VolcanicTerrain_80000");
 
             m_Vertices = new NativeArray<Vector3>(mesh.vertices, Allocator.Persistent).Reinterpret<float3>();
 
@@ -85,7 +84,7 @@ namespace Unity.Physics.Tests.Collision.Colliders
                 if (DummyRun)
                     return;
 
-                MeshCollider.Create(Vertices, Triangles);
+                using var mesh = MeshCollider.Create(Vertices, Triangles);
             }
         }
     }

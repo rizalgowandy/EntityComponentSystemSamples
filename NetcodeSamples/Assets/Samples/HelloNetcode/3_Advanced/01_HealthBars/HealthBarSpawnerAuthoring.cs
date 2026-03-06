@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Samples.HelloNetcode
 {
@@ -8,24 +9,31 @@ namespace Samples.HelloNetcode
     public class HealthBarSpawner : IComponentData
     {
         public GameObject HealthBarPrefab;
-        public Vector3 Offset;
+        public float OpponentHeightOffset;
+        public float PlayerTowardCameraOffset;
+        public float PlayerHeightOffset;
     }
 #endif
 
     public class HealthBarSpawnerAuthoring : MonoBehaviour
     {
         public GameObject HealthBarPrefab;
-        public float3 Offset;
+        public float OpponentHeightOffset = 0.5f;
+        public float PlayerTowardCameraOffset = 1.8f;
+        public float PlayerHeightOffset = -1.5f;
 #if !UNITY_DISABLE_MANAGED_COMPONENTS
 
         class Baker : Baker<HealthBarSpawnerAuthoring>
         {
             public override void Bake(HealthBarSpawnerAuthoring authoring)
             {
-                AddComponentObject(new HealthBarSpawner
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponentObject(entity, new HealthBarSpawner
                 {
                     HealthBarPrefab = authoring.HealthBarPrefab,
-                    Offset = authoring.Offset,
+                    OpponentHeightOffset = authoring.OpponentHeightOffset,
+                    PlayerTowardCameraOffset = authoring.PlayerTowardCameraOffset,
+                    PlayerHeightOffset = authoring.PlayerHeightOffset,
                 });
             }
         }

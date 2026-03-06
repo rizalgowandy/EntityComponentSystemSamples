@@ -4,7 +4,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Physics.Aspects;
 using Unity.Physics.Extensions;
 using Unity.Physics.Systems;
 using Unity.Transforms;
@@ -45,7 +44,8 @@ namespace Unity.Physics.Tests
     {
         public override void Bake(SimulationValidationAuthoring authoring)
         {
-            AddComponent(new SimulationValidationSettings()
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent(entity, new SimulationValidationSettings()
             {
                 EnableValidation = authoring.EnableValidation,
                 ValidateJointBehavior = authoring.ValidateJointBehavior,
@@ -81,11 +81,8 @@ namespace Unity.Physics.Tests
     {
         [NativeDisableUnsafePtrRestriction]
         public SimulationValidationSystem.ErrorCounter Errors;
-#if !ENABLE_TRANSFORM_V1
-        [ReadOnly] public ComponentLookup<WorldTransform> WorldTransformLookup;
-#else
-        [ReadOnly] public ComponentLookup<LocalToWorld> LocalToWorldLookup;
-#endif
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+
         [ReadOnly] public ComponentLookup<PhysicsVelocity> PhysicsVelocityLookup;
         [ReadOnly] public ComponentLookup<PhysicsMass> PhysicsMassLookup;
 
@@ -122,21 +119,13 @@ namespace Unity.Physics.Tests
                 return;
             }
 
-#if !ENABLE_TRANSFORM_V1
             var bodyAWorld = bodyPair.EntityA != Entity.Null
-                ? WorldTransformLookup[bodyPair.EntityA].ToMatrix()
+                ? TransformLookup[bodyPair.EntityA].ToMatrix()
                 : float4x4.identity;
             var bodyBWorld = bodyPair.EntityB != Entity.Null
-                ? WorldTransformLookup[bodyPair.EntityB].ToMatrix()
+                ? TransformLookup[bodyPair.EntityB].ToMatrix()
                 : float4x4.identity;
-#else
-            var bodyAWorld = bodyPair.EntityA != Entity.Null
-                ? LocalToWorldLookup[bodyPair.EntityA].Value
-                : float4x4.identity;
-            var bodyBWorld = bodyPair.EntityB != Entity.Null
-                ? LocalToWorldLookup[bodyPair.EntityB].Value
-                : float4x4.identity;
-#endif
+
             var anchorALocal = joint.BodyAFromJoint;
             var anchorBLocal = joint.BodyBFromJoint;
             var rigidAWorld = new RigidTransform(bodyAWorld);
@@ -319,14 +308,13 @@ namespace Unity.Physics.Tests
                     break;
             }
 
-
             // target validation for PhysicsJoints
             switch (joint.JointType)
             {
                 case JointType.AngularVelocityMotor:
                 {
                     // get expected angular velocity
-                    var motorConstraint = joint[0];
+                    var motorConstraint = joint[2];
                     ValidateConstraintType(motorConstraint, ConstraintType.AngularVelocityMotor);
                     int constrainedAxisIndex = motorConstraint.ConstrainedAxis1D;
 
@@ -342,10 +330,10 @@ namespace Unity.Physics.Tests
 
                     // actual angular velocity in world space (relative to B)
                     var angVelRel = wA - wB;
-
-                    if (math.abs(math.lengthsq(expectedAngVelRel - angVelRel)) > AngVelErrorTolSq)
+                    var check = math.abs(math.lengthsq(expectedAngVelRel - angVelRel));
+                    if (check > AngVelErrorTolSq)
                     {
-                        Errors.Add($"Validation (AngularVelocityMotor): angular joint velocity {angVelRel} exceeds expected angular velocity {expectedAngVelRel} by more than provided error tolerance of {AngVelErrorTol} rad/s.");
+                        Errors.Add($"Validation (AngularVelocityMotor): angular joint velocity {angVelRel} ({check}) exceeds expected angular velocity {expectedAngVelRel} by more than provided error tolerance of {AngVelErrorTol} rad/s.");
                     }
 
                     break;
@@ -380,18 +368,27 @@ namespace Unity.Physics.Tests
                     ValidateConstraintType(motorConstraint, ConstraintType.RotationMotor);
                     int constrainedAxisIndex = motorConstraint.ConstrainedAxis1D;
                     var targetAngle = motorConstraint.Target[constrainedAxisIndex];
-                    var rotAxis = new float3x3(anchorAWorld.rot)[constrainedAxisIndex];
-                    var qTargetRel = quaternion.AxisAngle(rotAxis, targetAngle);
 
-                    // If the rotational motor has reached its target (which we assume here), then rotating B by qTargetRel should get us to A
-                    var qTargetWorld = math.normalize(math.mul(qTargetRel, anchorBWorld.rot));
-                    var qDelta = math.normalize(math.mul(math.inverse(anchorAWorld.rot), qTargetWorld));
-                    ((Quaternion)qDelta).ToAngleAxis(out var deltaAngle, out var axis);
-                    deltaAngle = math.radians(deltaAngle);
-                    var cosAngle = math.cos(deltaAngle);
-                    if (cosAngle < OrientationErrorTolCos)
+                    // Calculate angle between the joint attachment frames.
+                    // Note: we already confirmed that the joint axis is aligned in both anchor frames in the pose validation above.
+                    var qDelta = math.normalize(math.mul(math.inverse(anchorBWorld.rot), anchorAWorld.rot));
+                    ((Quaternion)qDelta).ToAngleAxis(out var currentAngle, out var axis);
+                    // account for flip of axis in ToAngleAxis calculation
+                    currentAngle *= axis[constrainedAxisIndex];
+                    currentAngle = math.radians(currentAngle);
+                    var deltaAngle = currentAngle - targetAngle;
+                    var deltaAngleCos = math.cos(deltaAngle);
+                    // Note: below we exclude compliant joints, since these won't be able to reach their targets with reasonable accuracy in the general case.
+                    var compliantJoint = motorConstraint.SpringFrequency < 1e3;
+                    if (deltaAngleCos < OrientationErrorTolCos && !compliantJoint)
                     {
                         Errors.Add($"Validation (RotationalMotor): angle between anchor frames differs from target angle {targetAngle} radians by {deltaAngle} radians, which exceeds the orientation error tolerance of {OrientationErrorTol} radians.");
+                    }
+
+                    // check if we are within the limits
+                    if (currentAngle + OrientationErrorTol <= motorConstraint.Min || currentAngle - OrientationErrorTol >= motorConstraint.Max)
+                    {
+                        Errors.Add($"Validation (RotationalMotor): angle between anchor frames {currentAngle} is out of admissible (min, max) range ({motorConstraint.Min}, {motorConstraint.Max}) by more than orientation error tolerance of {OrientationErrorTol} radians.");
                     }
                     break;
                 }
@@ -419,8 +416,7 @@ namespace Unity.Physics.Tests
     [BurstCompile]
     public partial struct ValidateRigidBodyAtRestJob : IJobEntity
     {
-        [NativeDisableUnsafePtrRestriction]
-        public SimulationValidationSystem.ErrorCounter Errors;
+        [NativeDisableUnsafePtrRestriction] public SimulationValidationSystem.ErrorCounter Errors;
 
         [ReadOnly] public float MaxLinVel;
         [ReadOnly] public float MaxAngVel;
@@ -428,15 +424,16 @@ namespace Unity.Physics.Tests
         [ReadOnly] public float MaxAngVelSq;
 
         [GenerateTestsForBurstCompatibility]
-        void Execute(in RigidBodyAspect rigidBody)
+        void Execute(Entity entity, ref LocalTransform transform, ref PhysicsVelocity pv, ref PhysicsMass pm)
         {
-            var vSq = math.lengthsq(rigidBody.LinearVelocity);
-            var wSq = math.lengthsq(rigidBody.AngularVelocityLocalSpace);
+            var vSq = math.lengthsq(pv.Linear);
+            var wSq = math.lengthsq(pv.Angular);
             bool linVelAtRest = vSq <= MaxLinVelSq;
             bool angVelAtRest = wSq <= MaxAngVelSq;
             if (!linVelAtRest || !angVelAtRest)
             {
-                Errors.Add($"Validation (Rigid Body, Entity: {rigidBody.Entity.ToFixedString()}): (linear, angular) velocity is ({math.sqrt(vSq)}, {math.sqrt(wSq)}), which exceeds the (linear, angular) velocity error tolerance of ({MaxLinVel}, {MaxAngVel}).");
+                Errors.Add(
+                    $"Validation (Rigid Body, Entity: {entity.ToFixedString()}): (linear, angular) velocity is ({math.sqrt(vSq)}, {math.sqrt(wSq)}), which exceeds the (linear, angular) velocity error tolerance of ({MaxLinVel}, {MaxAngVel}).");
             }
         }
     }
@@ -444,11 +441,8 @@ namespace Unity.Physics.Tests
     [UpdateInGroup(typeof(AfterPhysicsSystemGroup))]
     public partial struct SimulationValidationSystem : ISystem
     {
-#if !ENABLE_TRANSFORM_V1
-        private ComponentLookup<WorldTransform> WorldTransformLookup;
-#else
-        private ComponentLookup<LocalToWorld> LocalToWorldLookup;
-#endif
+        private ComponentLookup<LocalTransform> TransformLookup;
+
         private ComponentLookup<PhysicsVelocity> PhysicsVelocityLookup;
         private ComponentLookup<PhysicsMass> PhysicsMassLookup;
         private int NumErrorsDetected;
@@ -487,11 +481,8 @@ namespace Unity.Physics.Tests
             state.RequireForUpdate<SimulationValidationSettings>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
 
-#if !ENABLE_TRANSFORM_V1
-            WorldTransformLookup = state.GetComponentLookup<WorldTransform>();
-#else
-            LocalToWorldLookup = state.GetComponentLookup<LocalToWorld>();
-#endif
+            TransformLookup = state.GetComponentLookup<LocalTransform>();
+
             PhysicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>();
             PhysicsMassLookup = state.GetComponentLookup<PhysicsMass>();
             unsafe
@@ -532,11 +523,8 @@ namespace Unity.Physics.Tests
             ElapsedTime += SystemAPI.Time.DeltaTime;
             if (settings.ValidationTimeRange[0] <= elapsedTime && (elapsedTime <= settings.ValidationTimeRange[1] || settings.ValidationTimeRange[1] < 0))
             {
-#if !ENABLE_TRANSFORM_V1
-                WorldTransformLookup.Update(ref state);
-#else
-                LocalToWorldLookup.Update(ref state);
-#endif
+                TransformLookup.Update(ref state);
+
                 PhysicsVelocityLookup.Update(ref state);
                 PhysicsMassLookup.Update(ref state);
 
@@ -548,11 +536,8 @@ namespace Unity.Physics.Tests
                     var handle = new ValidateJointBehaviorJob()
                     {
                         Errors = Errors,
-#if !ENABLE_TRANSFORM_V1
-                        WorldTransformLookup = WorldTransformLookup,
-#else
-                        LocalToWorldLookup = LocalToWorldLookup,
-#endif
+                        TransformLookup = TransformLookup,
+
                         PhysicsVelocityLookup = PhysicsVelocityLookup,
                         PhysicsMassLookup = PhysicsMassLookup,
                         DynamicsWorld = physicsWorld.DynamicsWorld,

@@ -17,7 +17,7 @@ namespace Asteroids.Server
     public partial struct LoadLevelSystem : ISystem
     {
         private EntityQuery m_LevelGroup;
-        private PortableFunctionPointer<GhostImportance.ScaleImportanceDelegate> m_ScaleFunctionPointer;
+        private PortableFunctionPointer<GhostImportance.BatchScaleImportanceDelegate> m_BatchScaleFunction;
 
         public void OnCreate(ref SystemState state)
         {
@@ -25,42 +25,31 @@ namespace Asteroids.Server
             m_LevelGroup = state.GetEntityQuery(builder);
 
             state.RequireForUpdate<ServerSettings>();
-            m_ScaleFunctionPointer = GhostDistanceImportance.ScaleFunctionPointer;
-        }
-
-        [BurstCompile]
-        public void OnDestroy(ref SystemState state)
-        {
+            m_BatchScaleFunction = GhostDistanceImportance.BatchScaleWithRelevancyFunctionPointer;
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var settings = SystemAPI.GetSingleton<ServerSettings>();
-            if (!SystemAPI.HasSingleton<GhostImportance>())
+            var hasGhostImportanceScaling = SystemAPI.TryGetSingletonEntity<GhostImportance>(out var ghostImportanceEntity);
+            if (settings.levelData.enableGhostImportanceScaling != hasGhostImportanceScaling)
             {
-                // Try to store a bit less than full chunks to avoid fragmenting the data too much
-                var maxAsteroidsPerTile = 25;
-                var minTileSize = 256;
-                float asteroidsPerPx = (float)settings.levelData.numAsteroids / (float)(settings.levelData.levelWidth*settings.levelData.levelHeight);
-                // We want to make sure that asteroidsPerPx * tileSize * tileSize = maxAsteroidsPerTile
-                int tileSize = math.max(minTileSize, (int)math.ceil(math.sqrt((float)maxAsteroidsPerTile / asteroidsPerPx)));
-
-                var grid = state.EntityManager.CreateEntity();
-                state.EntityManager.SetName(grid, "GhostImportanceSingleton");
-                state.EntityManager.AddComponentData(grid, new GhostDistanceData
+                if (hasGhostImportanceScaling)
                 {
-                    TileSize = new int3(tileSize, tileSize, 256),
-                    TileCenter = new int3(0, 0, 128),
-                    TileBorderWidth = new float3(1f, 1f, 1f),
-                });
-                state.EntityManager.AddComponentData(grid, new GhostImportance
+                    state.EntityManager.DestroyEntity(ghostImportanceEntity);
+                }
+                else
                 {
-                    ScaleImportanceFunction = m_ScaleFunctionPointer,
-                    GhostConnectionComponentType = ComponentType.ReadOnly<GhostConnectionPosition>(),
-                    GhostImportanceDataType = ComponentType.ReadOnly<GhostDistanceData>(),
-                    GhostImportancePerChunkDataType = ComponentType.ReadOnly<GhostDistancePartitionShared>(),
-                });
+                    var gridSingleton = state.EntityManager.CreateSingleton(settings.levelData.distanceImportanceTileConfig);
+                    state.EntityManager.AddComponentData(gridSingleton, new GhostImportance
+                    {
+                        BatchScaleImportanceFunction = m_BatchScaleFunction,
+                        GhostConnectionComponentType = ComponentType.ReadOnly<GhostConnectionPosition>(),
+                        GhostImportanceDataType = ComponentType.ReadOnly<GhostDistanceData>(),
+                        GhostImportancePerChunkDataType = ComponentType.ReadOnly<GhostDistancePartitionShared>(),
+                    });
+                }
             }
 
             if (m_LevelGroup.IsEmptyIgnoreFilter)
@@ -90,7 +79,7 @@ namespace Asteroids.Server
             public EntityCommandBuffer ecb;
             [ReadOnly] public NativeList<LevelComponent> level;
 
-            public void Execute(Entity entity, in NetworkIdComponent networkId)
+            public void Execute(Entity entity, in NetworkId networkId)
             {
                 ecb.AddComponent(entity, new LevelRequestedTag());
                 var req = ecb.CreateEntity();
@@ -98,7 +87,7 @@ namespace Asteroids.Server
                 {
                     levelData = level[0],
                 });
-                ecb.AddComponent(req, new SendRpcCommandRequestComponent {TargetConnection = entity});
+                ecb.AddComponent(req, new SendRpcCommandRequest {TargetConnection = entity});
             }
         }
     }

@@ -6,8 +6,8 @@ namespace Samples.HelloNetcode
     public struct BarrelSetup : IComponentData
     {
         public int AmountOfCircles;
-        public int Spacing;
-        public bool EnableProblem;
+        public float Spacing;
+        public bool EnableStaticOptimizationProblem;
     }
 
     [DisallowMultipleComponent]
@@ -16,7 +16,7 @@ namespace Samples.HelloNetcode
         [RegisterBinding(typeof(BarrelSetup), "AmountOfCircles")]
         public int AmountOfCircles;
         [RegisterBinding(typeof(BarrelSetup), "Spacing")]
-        public int Spacing;
+        public float Spacing;
         [RegisterBinding(typeof(BarrelSetup), "EnableProblem")]
         public bool EnableProblem;
 
@@ -27,8 +27,9 @@ namespace Samples.HelloNetcode
                 BarrelSetup component = default(BarrelSetup);
                 component.AmountOfCircles = authoring.AmountOfCircles;
                 component.Spacing = authoring.Spacing;
-                component.EnableProblem = authoring.EnableProblem;
-                AddComponent(component);
+                component.EnableStaticOptimizationProblem = authoring.EnableProblem;
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }

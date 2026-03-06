@@ -2,6 +2,7 @@ using Unity.Entities;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Transforms;
 
 public struct PhysicsPyramid : IComponentData {}
@@ -28,7 +29,7 @@ public class CreatePyramidsBehaviour : MonoBehaviour
     {
         public override void Bake(CreatePyramidsBehaviour authoring)
         {
-            var sourceEntity = GetEntity(authoring.boxPrefab);
+            var sourceEntity = GetEntity(authoring.boxPrefab, TransformUsageFlags.Dynamic);
             if (sourceEntity == Entity.Null)
                 return;
 
@@ -48,7 +49,8 @@ public class CreatePyramidsBehaviour : MonoBehaviour
                 StartPosition = authoring.transform.position,
                 BoxSize = boxSize
             };
-            AddComponent(createPyramids);
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent(entity, createPyramids);
         }
     }
 }
@@ -96,13 +98,10 @@ public partial class CreatePyramidsSystem : SystemBase
             {
                 var entity = EntityManager.Instantiate(creator.ValueRO.BoxEntity);
                 ecb.AddComponent(entity, pyramidComponent);
-#if !ENABLE_TRANSFORM_V1
+
                 var transform = EntityManager.GetComponentData<LocalTransform>(entity);
                 transform.Position = positions[i];
                 ecb.SetComponent(entity, transform);
-#else
-                ecb.SetComponent(entity, new Translation() { Value = positions[i] });
-#endif
             }
 
             ecb.DestroyEntity(creatorEntity);

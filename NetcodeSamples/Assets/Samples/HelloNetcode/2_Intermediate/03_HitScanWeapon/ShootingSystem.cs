@@ -16,32 +16,26 @@ namespace Samples.HelloNetcode
             state.RequireForUpdate<Hit>();
         }
 
-        public void OnDestroy(ref SystemState state)
-        {
-        }
-
         public void OnUpdate(ref SystemState state)
         {
+            var netDebug = SystemAPI.GetSingleton<NetDebug>();
             var collisionHistory = SystemAPI.GetSingleton<PhysicsWorldHistorySingleton>();
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld;
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-            var ghostComponentFromEntity = SystemAPI.GetComponentLookup<GhostComponent>();
-#if !ENABLE_TRANSFORM_V1
-            var scaleFromEntity = SystemAPI.GetComponentLookup<PostTransformScale>();
-#else
-            var scaleFromEntity = SystemAPI.GetComponentLookup<NonUniformScale>();
-#endif
+            var ghostComponentFromEntity = SystemAPI.GetComponentLookup<GhostInstance>();
+            var localToWorldFromEntity = SystemAPI.GetComponentLookup<LocalToWorld>();
             var lagCompensationEnabledFromEntity = SystemAPI.GetComponentLookup<LagCompensationEnabled>();
             var predictingTick = networkTime.ServerTick;
             // Do not perform hit-scan when rolling back, only when simulating the latest tick
             if (!networkTime.IsFirstTimeFullyPredictingTick)
                 return;
 
-            foreach (var (character, interpolationDelay, hitComponent) in SystemAPI.Query<CharacterAspect, RefRO<CommandDataInterpolationDelay>, RefRW<Hit>>().WithAll<Simulate>())
+            foreach (var (character, interpolationDelay, hitComponent)
+                     in SystemAPI.Query<CharacterAspect, RefRO<CommandDataInterpolationDelay>, RefRW<Hit>>().WithAll<Simulate>())
             {
                 if (character.Input.SecondaryFire.IsSet)
                 {
-                    hitComponent.ValueRW.Entity = character.Self;
+                    hitComponent.ValueRW.Victim = character.Self;
                     hitComponent.ValueRW.Tick = predictingTick;
                     continue;
                 }
@@ -50,16 +44,32 @@ namespace Samples.HelloNetcode
                     continue;
                 }
 
-                // Get the collision world to use given the tick currently being predicted and the interpolation delay for the connection
-                var delay = lagCompensationEnabledFromEntity.HasComponent(character.Self)
-                    ? interpolationDelay.ValueRO.Delay
-                    : 0;
+                // When we fetch the CollisionWorld for ServerTick T, we need to account for the fact that the user
+                // raised this input sometime on the previous tick (render-frame, technically).
+                const int additionalRenderDelay = 1;
 
-                collisionHistory.GetCollisionWorldFromTick(predictingTick, delay, ref physicsWorld, out var collWorld);
+                // Breakdown of timings:
+                // - On the client, predicting ServerTick: 100 (for example)
+                // - InterpolationDelay: 2 ticks
+                // - Rendering Latency (assumption): 1 tick (likely more than 1 due to: double/triple buffering, pipelining, monitor refresh & draw latency)
+                // - Client visually sees 97 (-1 for render latency, -2 for lag compensation)
+                // - CommandDataInterpolationTick.Delay is a delta between CurrentCommand.Tick vs InterpolationTick, thus -2.
+                //   I.e. InterpolationDelay is already accounted for.
+                // - On the server, we process this input on ServerTick:100.
+                // - CommandDataInterpolationTick.Delay:-2 = 98 (-2)
+                // - So the server also needs to subtract the rendering delay to be consistent with what the client sees and queries against (97).
+                var delay = lagCompensationEnabledFromEntity.HasComponent(character.Self)
+                    ? interpolationDelay.ValueRO.Delay + additionalRenderDelay
+                    : additionalRenderDelay;
+
+                collisionHistory.GetCollisionWorldFromTick(predictingTick, delay, ref physicsWorld, out var collWorld, out var expectedTick, out var returnedTick);
+                var didClamp = expectedTick != returnedTick; // ClientWorld shouldn't be clamping when calling GetCollisionWorldFromTick!
+                if(state.WorldUnmanaged.IsClient()) UnityEngine.Debug.Assert(!didClamp);
+
 
                 var cameraRotation = math.mul(quaternion.RotateY(character.Input.Yaw), quaternion.RotateX(-character.Input.Pitch));
                 var offset = math.rotate(cameraRotation, CharacterControllerCameraSystem.k_CameraOffset);
-                var cameraPosition = character.Transform.LocalPosition + offset;
+                var cameraPosition = character.Transform.ValueRO.Position + offset;
                 var forward = math.mul(cameraRotation, math.forward());
                 var rayInput = new RaycastInput
                 {
@@ -80,27 +90,16 @@ namespace Samples.HelloNetcode
                 {
                     hitEntity = closestHit.Entity;
 
-                    var rigidTransform = collWorld.Bodies[closestHit.RigidBodyIndex].WorldFromBody;
-                    hitPoint -= rigidTransform.pos;
-                    hitPoint = math.mul(math.inverse(rigidTransform.rot), hitPoint);
-#if !ENABLE_TRANSFORM_V1
-                    if (scaleFromEntity.HasComponent(closestHit.Entity))
+                    var localToWorld = localToWorldFromEntity[hitEntity].Value;
+                    hitPoint = math.mul(math.inverse(localToWorld), new float4(hitPoint, 1)).xyz;
+
+                    if (netDebug.LogLevel == NetDebug.LogLevelType.Debug)
                     {
-                        var scaleMatrix = scaleFromEntity[closestHit.Entity].Value;
-                        var scaleX = math.length(scaleMatrix.c0.xyz);
-                        var scaleY = math.length(scaleMatrix.c1.xyz);
-                        var scaleZ = math.length(scaleMatrix.c2.xyz);
-                        hitPoint /= new float3(scaleX, scaleY, scaleZ);
+                        netDebug.DebugLog($"[{state.WorldUnmanaged.Name}] Logged HIT on {predictingTick.ToFixedString()} (expected:{expectedTick.ToFixedString()}, actual/returned:{returnedTick.ToFixedString()}) with victim at worldPos:{collWorld.Bodies[closestHit.RigidBodyIndex].WorldFromBody.pos}!");
                     }
-#else
-                    if (scaleFromEntity.HasComponent(closestHit.Entity))
-                    {
-                        hitPoint /= scaleFromEntity[closestHit.Entity].Value;
-                    }
-#endif
                 }
 
-                hitComponent.ValueRW.Entity = hitEntity;
+                hitComponent.ValueRW.Victim = hitEntity;
                 hitComponent.ValueRW.HitPoint = hitPoint;
                 hitComponent.ValueRW.Tick = predictingTick;
             }

@@ -1,3 +1,5 @@
+//#define DEBUG_TEST_IN_PLAYER_BUILD
+
 #if UNITY_ANDROID && !UNITY_64
 #define UNITY_ANDROID_ARM7V
 #endif
@@ -14,7 +16,7 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Jobs;
 
-namespace Unity.Physics.Samples.Test
+namespace Unity.Physics.Tests
 {
     // Runs all simulation types on the same cloned physics world for a
     // predefined number of steps and compares results.
@@ -38,17 +40,17 @@ namespace Unity.Physics.Samples.Test
 
             // Following demos are removed from SimulationDeterminism because they take
             // too long to complete, and bring no special value
-            "PlanetGravity", "LargeMesh", "Force Field", "ComplexStacking",
+            "Planet Gravity", "LargeMesh", "Force Field", "ComplexStacking",
 
             // Removed as long as Havok plugins are not build with -strict floating point mode
-            "RaycastCar", "Joints Parade",
+            "Raycast Car", "Joints - Parade",
 
             // These demos do some verifications that would currently fail with UP
             "AllMotors.unity",
 
 #if UNITY_ANDROID_ARM7V
             // disabled due to sigbuss crashes, something is defo corrupting memory in the allocators
-            "CharacterController",
+            "Character Controller",
             "Animation",
             "ClientServer",
             "DeactivatedBodiesTriggerTest",
@@ -57,7 +59,27 @@ namespace Unity.Physics.Samples.Test
             "SimpleStacking", //disabled due to being unstable on some console devices
 #endif
 #if UNITY_GAMECORE
-            "SoftJoint" // disabled on Xbox Series X as it fails.  Jira ticket: https://jira.unity3d.com/browse/DOTS-6520
+            "SoftJoint" // disabled on Xbox Series X as it fails.  Jira ticket: DOTS-6520
+#endif
+#if UNITY_IOS
+            // Scences disabled on iOS. Bug report: DOTS-9614
+            "Joints - Ragdolls",
+            "ChangeGroundFilter",
+            "ChangeGroundFilterChangeCollider",
+            "ChangeGroundFilterChangeMotionType",
+            "ChangeGroundFilterNewCollider",
+            "ChangeGroundFilterRemove",
+            "ChangeGroundFilterTeleport",
+            "CollisionResponse.None",
+            "ChangeCompoundFilter",
+            "Compound",
+            "FixedAngleGrid",
+            "InvalidJoint",
+            "RagdollGrid",
+            "SoftJoint",
+            "SingleThreadedRagdoll",
+            "Terrain_Triangles",
+            "Terrain_VertexSamples"
 #endif
         };
 
@@ -88,13 +110,13 @@ namespace Unity.Physics.Samples.Test
             return scenes;
         }
 
+#if DEBUG_TEST_IN_PLAYER_BUILD
+        static bool kContinue = false;
+#endif
+
 #if !UNITY_EDITOR || UNITY_PHYSICS_INCLUDE_END2END_TESTS
         [UnityTest]
         [Timeout(240000)]
-#if HAVOK_PHYSICS_EXISTS
-        // "https://jira.unity3d.com/browse/DOTS-6835"
-        [UnityPlatform(exclude = new[] {RuntimePlatform.GameCoreXboxSeries, RuntimePlatform.GameCoreXboxOne})]
-#endif
 #endif
         public virtual IEnumerator LoadScenes([ValueSource(nameof(GetScenes))] string scenePath)
         {
@@ -119,6 +141,16 @@ namespace Unity.Physics.Samples.Test
 
             // Load the scene and wait 2 frames
             SceneManager.LoadScene(scenePath);
+
+#if DEBUG_TEST_IN_PLAYER_BUILD
+            // For testing in player builds, build with "Development Build" and "Script Debugging" enabled.
+            // Attach with your IDE and put a breakpoint on the line below. Then, set the kContinue variable to true
+            // to continue the test and begin debugging.
+            while (!kContinue)
+            {
+                yield return null;
+            }
+#endif
 
             yield return null;
             yield return null;
@@ -160,6 +192,7 @@ namespace Unity.Physics.Samples.Test
             var stepInput = new SimulationStepInput()
             {
                 Gravity = stepComponent.Gravity,
+                NumSubsteps = stepComponent.SubstepCount,
                 NumSolverIterations = stepComponent.SolverIterationCount,
                 SolverStabilizationHeuristicSettings = stepComponent.SolverStabilizationHeuristicSettings,
                 SynchronizeCollisionWorld = true,
@@ -281,7 +314,7 @@ namespace Unity.Physics.Samples.Test
                 {
                     physicsWorlds[i].Dispose();
                 }
-                LogAssert.NoUnexpectedReceived();
+                VerifyConsoleMessages.VerifyPrintedMessages(scenePath);
             }
         }
 

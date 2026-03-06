@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
@@ -17,28 +18,24 @@ namespace Samples.HelloNetcode
         public ScrollRect m_ScrollRect;
         public GameObject m_ChatWindowPrefab;
 
-        List<World> m_ClientWorlds = new List<World>();
         private int m_CurrentUserSlot = 0;
         private int m_UserSlotHorizontalSpace = -13;
         private int m_OwnUser = -1;
+        List<Text> m_CachedUserTexts;
 
         void Start()
         {
-            foreach (var world in World.All)
-            {
-                if (world.IsClient() && !world.IsThinClient())
-                    m_ClientWorlds.Add(world);
-            }
+            m_CachedUserTexts = m_Canvas.GetComponentsInChildren<Text>().ToList();
         }
 
         void Update()
         {
-            if (m_OwnUser == -1)
+            if (m_OwnUser == -1 && ClientServerBootstrap.ClientWorld != null)
             {
                 // Non-thin client will always be first in the list
-                var connectionQuery = m_ClientWorlds[0].EntityManager
-                    .CreateEntityQuery(ComponentType.ReadOnly<NetworkIdComponent>());
-                var connectionIds = connectionQuery.ToComponentDataArray<NetworkIdComponent>(Allocator.Temp);
+                var connectionQuery = ClientServerBootstrap.ClientWorld.EntityManager
+                    .CreateEntityQuery(ComponentType.ReadOnly<NetworkId>());
+                var connectionIds = connectionQuery.ToComponentDataArray<NetworkId>(Allocator.Temp);
                 if (connectionIds.Length > 0)
                 {
                     // Client only has one connection
@@ -61,10 +58,9 @@ namespace Samples.HelloNetcode
                 m_ScrollRect.verticalNormalizedPosition = 0f;
             }
 
-            if (RpcUiData.Users.Data.IsCreated && RpcUiData.Users.Data.TryDequeue(out var user))
+            while (RpcUiData.Users.Data.IsCreated && RpcUiData.Users.Data.TryDequeue(out var user))
             {
-                var userText = Instantiate(m_UserPrefab, m_Canvas.transform, false);
-                userText.GetComponent<RectTransform>().anchoredPosition3D += new Vector3(0,m_CurrentUserSlot*m_UserSlotHorizontalSpace, 0);
+                var userText = GetUserText();
                 userText.text = $"User {user}";
                 m_CurrentUserSlot++;
 
@@ -74,10 +70,25 @@ namespace Samples.HelloNetcode
             }
         }
 
+        Text GetUserText()
+        {
+            foreach (var text in m_CachedUserTexts)
+            {
+                if (!text.enabled)
+                {
+                    text.enabled = true;
+                    return text;
+                }
+            }
+            var newText = Instantiate(m_UserPrefab, m_Canvas.transform, false);
+            newText.GetComponent<RectTransform>().anchoredPosition3D += new Vector3(0,m_CurrentUserSlot*m_UserSlotHorizontalSpace, 0);
+            m_CachedUserTexts.Add(newText);
+            return newText;
+        }
+
         public void SendChatMessage()
         {
-            if (m_ClientWorlds.Count > 0)
-                SendRPC(m_ClientWorlds[0], m_InputText.text);
+            SendRPC(ClientServerBootstrap.ClientWorld, m_InputText.text);
             // Clear the input text as the message has been sent, and place the UI focus back on it
             // so it's ready to accept the next message
             m_InputText.text = "";
@@ -90,10 +101,10 @@ namespace Samples.HelloNetcode
             if (world == null || !world.IsCreated) return;
             var entity = world.EntityManager.CreateEntity();
             world.EntityManager.AddComponentData(entity, new ChatMessage() { Message = message});
-            world.EntityManager.AddComponent<SendRpcCommandRequestComponent>(entity);
+            world.EntityManager.AddComponent<SendRpcCommandRequest>(entity);
             if (targetEntity != Entity.Null)
                 world.EntityManager.SetComponentData(entity,
-                    new SendRpcCommandRequestComponent() { TargetConnection = targetEntity });
+                    new SendRpcCommandRequest() { TargetConnection = targetEntity });
         }
     }
 }

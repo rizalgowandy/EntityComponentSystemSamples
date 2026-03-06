@@ -7,7 +7,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityObject = UnityEngine.Object;
 
 class LoaderScene : MonoBehaviour
 {
@@ -137,7 +136,7 @@ static class LoaderSceneConfigurator
     [UnityEditor.Callbacks.PostProcessScene]
     static void OnPostProcessScene()
     {
-        var loader = UnityObject.FindObjectsOfType<LoaderScene>().FirstOrDefault();
+        var loader = UnityEngine.Object.FindObjectsByType<LoaderScene>(FindObjectsSortMode.None).FirstOrDefault();
         if (loader != null)
             loader.SetScenes(UnityEditor.EditorBuildSettings.scenes);
     }

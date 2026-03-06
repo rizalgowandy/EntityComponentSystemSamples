@@ -91,9 +91,10 @@ public class SingleThreadedRagdoll : MonoBehaviour
         {
             World = PhysicsWorld,
             TimeStep = World.DefaultGameObjectInjectionWorld.GetExistingSystemManaged<FixedStepSimulationSystemGroup>().Timestep,
+            Gravity = PhysicsStep.Default.Gravity,
+            NumSubsteps = PhysicsStep.Default.SubstepCount,
             NumSolverIterations = PhysicsStep.Default.SolverIterationCount,
             SolverStabilizationHeuristicSettings = PhysicsStep.Default.SolverStabilizationHeuristicSettings,
-            Gravity = PhysicsStep.Default.Gravity,
             HaveStaticBodiesChanged = HaveStaticBodiesChanged
         };
 
@@ -367,7 +368,7 @@ public class SingleThreadedRagdoll : MonoBehaviour
         HaveStaticBodiesChanged = new NativeReference<int>(1, Allocator.Persistent);
 
         // Create all the Bodies
-        var basicBodyInfos = GameObject.FindObjectsOfType<BasicBodyInfo>();
+        var basicBodyInfos = GameObject.FindObjectsByType<BasicBodyInfo>(FindObjectsSortMode.None);
         for (int i = 0; i < basicBodyInfos.Length; i++)
         {
             var basicBodyInfo = basicBodyInfos[i];
@@ -381,7 +382,7 @@ public class SingleThreadedRagdoll : MonoBehaviour
         }
 
         // Create all the Joints
-        var basicJointInfos = GameObject.FindObjectsOfType<BasicJointInfo>();
+        var basicJointInfos = GameObject.FindObjectsByType<BasicJointInfo>(FindObjectsSortMode.None);
         for (int i = 0; i < basicJointInfos.Length; i++)
         {
             var basicJointInfo = basicJointInfos[i];

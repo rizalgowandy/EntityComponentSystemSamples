@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -8,11 +9,33 @@ using Object = UnityEngine.Object;
 namespace Samples.HelloNetcode
 {
 #if !UNITY_DISABLE_MANAGED_COMPONENTS
-    public class HealthUI : IComponentData
+    public class HealthUI : IComponentData, IDisposable, ICloneable
     {
         public Transform HealthBar;
         public Image HealthSlider;
-        public float3 Offset;
+        public float OpponentHeightOffset;
+        public float PlayerHeightOffset;
+        public float PlayerTowardCameraOffset;
+
+        public void Dispose()
+        {
+            // As this is IDisposable, we can trigger the destruction of the HealthBar when this ghost entity is destroyed.
+            if (HealthBar != null)
+                Object.Destroy(HealthBar.gameObject);
+        }
+
+        public object Clone()
+        {
+            if (HealthBar == null || HealthBar.gameObject == null)
+                return new HealthUI();
+            var newHealthBar = Object.Instantiate(HealthBar.gameObject);
+            var images = HealthBar.gameObject.GetComponentsInChildren<Image>();
+            return new HealthUI
+            {
+                HealthBar = newHealthBar.GetComponent<Transform>(),
+                HealthSlider = images[1]
+            };
+        }
     }
 
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
@@ -23,10 +46,6 @@ namespace Samples.HelloNetcode
         {
             state.RequireForUpdate<HealthBarSpawner>();
             state.RequireForUpdate<Health>();
-        }
-
-        public void OnDestroy(ref SystemState state)
-        {
         }
 
         public void OnUpdate(ref SystemState state)
@@ -43,7 +62,9 @@ namespace Samples.HelloNetcode
                 {
                     HealthBar = go.transform,
                     HealthSlider = image[1],
-                    Offset = spawner.Offset,
+                    OpponentHeightOffset = spawner.OpponentHeightOffset,
+                    PlayerTowardCameraOffset = spawner.PlayerTowardCameraOffset,
+                    PlayerHeightOffset = spawner.PlayerHeightOffset,
                 });
             }
             ecb.Playback(state.EntityManager);

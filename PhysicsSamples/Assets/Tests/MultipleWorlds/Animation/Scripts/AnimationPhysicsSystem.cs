@@ -8,8 +8,7 @@ namespace Unity.Physics.Tests
     // A system which performs the whole physics pipeline on animated bodies
     [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
     [UpdateAfter(typeof(DriveAnimationBodySystem))]
-    [BurstCompile]
-    public partial struct AnimationPhysicsSystem : ISystem
+    public partial struct AnimationPhysicsSystem : ISystem, ISystemStartStop
     {
         private PhysicsWorldData PhysicsData;
         private PhysicsWorldIndex WorldFilter;
@@ -20,6 +19,11 @@ namespace Unity.Physics.Tests
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<DriveAnimationBodyData>();
+        }
+
+        [BurstCompile]
+        public void OnStartRunning(ref SystemState state)
+        {
             WorldFilter = new PhysicsWorldIndex(1);
             PhysicsData = new PhysicsWorldData(ref state, WorldFilter);
             m_ExportPhysicsWorldTypeHandles = new ExportPhysicsWorldTypeHandles(ref state);
@@ -27,7 +31,7 @@ namespace Unity.Physics.Tests
         }
 
         [BurstCompile]
-        public void OnDestroy(ref SystemState state)
+        public void OnStopRunning(ref SystemState state)
         {
             if (m_Stepper.Created == true)
             {
@@ -66,7 +70,8 @@ namespace Unity.Physics.Tests
                     TimeStep = timeStep,
                     Gravity = stepComponent.Gravity,
                     SynchronizeCollisionWorld = false,
-                    NumSolverIterations = 4,
+                    NumSubsteps = stepComponent.SubstepCount,
+                    NumSolverIterations = stepComponent.SolverIterationCount,
                     SolverStabilizationHeuristicSettings = Solver.StabilizationHeuristicSettings.Default,
                     HaveStaticBodiesChanged = PhysicsData.HaveStaticBodiesChanged
                 });

@@ -6,13 +6,14 @@ using Unity.Mathematics;
 using Unity.Profiling;
 using Unity.Collections;
 using Unity.NetCode;
+using Unity.NetCode.HostMigration;
 using Unity.Physics.Systems;
 
 namespace Samples.HelloNetcode
 {
     public struct CharacterControllerConfig : IComponentData
     {
-        public float Speed;
+        public float MoveSpeed;
         public float JumpSpeed;
         public float Gravity;
     }
@@ -28,16 +29,18 @@ namespace Samples.HelloNetcode
         [GhostField]
         public NetworkTick JumpStart;
     }
+
+#pragma warning disable CS0618 // Disable Aspects obsolete warnings
     public readonly partial struct CharacterAspect : IAspect
     {
         public readonly Entity Self;
-        public readonly TransformAspect Transform;
+        public readonly RefRW<LocalTransform> Transform;
 
         readonly RefRO<AutoCommandTarget> m_AutoCommandTarget;
         readonly RefRW<Character> m_Character;
         readonly RefRW<PhysicsVelocity> m_Velocity;
         readonly RefRO<CharacterControllerPlayerInput> m_Input;
-        readonly RefRO<GhostOwnerComponent> m_Owner;
+        readonly RefRO<GhostOwner> m_Owner;
 
         public AutoCommandTarget AutoCommandTarget => m_AutoCommandTarget.ValueRO;
         public CharacterControllerPlayerInput Input => m_Input.ValueRO;
@@ -45,6 +48,7 @@ namespace Samples.HelloNetcode
         public ref Character Character => ref m_Character.ValueRW;
         public ref PhysicsVelocity Velocity => ref m_Velocity.ValueRW;
     }
+#pragma warning restore CS0618
 
     [UpdateInGroup(typeof(PhysicsSystemGroup))]
     [UpdateBefore(typeof(PhysicsInitializeGroup))]
@@ -53,7 +57,7 @@ namespace Samples.HelloNetcode
     {
         const float k_DefaultTau = 0.4f;
         const float k_DefaultDamping = 0.9f;
-        const float k_DefaultSkinWidth = 0.02f;
+        const float k_DefaultSkinWidth = 0f;
         const float k_DefaultContactTolerance = 0.1f;
         const float k_DefaultMaxSlope = 60f;
         const float k_DefaultMaxMovementSpeed = 10f;
@@ -73,24 +77,42 @@ namespace Samples.HelloNetcode
             m_MarkerStep = new Unity.Profiling.ProfilerMarker("Step");
         }
 
-        public void OnDestroy(ref SystemState state)
-        {
-        }
-
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             state.CompleteDependency();
 
             var physicsWorldSingleton = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            if (!HasPhysicsWorldBeenInitialized(physicsWorldSingleton))
+            {
+                return;
+            }
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
 
+            var isMigratedLookup = SystemAPI.GetComponentLookup<IsMigrated>();
+
+            var commandBuffer = new EntityCommandBuffer(Allocator.Temp);
             foreach (var character in SystemAPI.Query<CharacterAspect>().WithAll<Simulate>())
             {
                 if (!character.AutoCommandTarget.Enabled)
                 {
                     character.Velocity.Linear = float3.zero;
-                    return;
+                    continue;
+                }
+
+                if (isMigratedLookup.HasComponent(character.Self))
+                {
+                    var characterPrefabQuery = SystemAPI.QueryBuilder().WithAll<CharacterControllerConfig, Prefab>().Build();
+                    if (characterPrefabQuery.CalculateEntityCount() == 1)
+                    {
+                        UnityEngine.Debug.Log($"Reconnecting character controller config entity was:{character.Character.ControllerConfig} is now:{characterPrefabQuery.GetSingletonEntity()}");
+                        character.Character.ControllerConfig = characterPrefabQuery.GetSingletonEntity();
+                        commandBuffer.RemoveComponent<IsMigrated>(character.Self);
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError($"Failed to reconnect character controller config entity was:{character.Character.ControllerConfig}");
+                    }
                 }
 
                 var controllerConfig = SystemAPI.GetComponent<CharacterControllerConfig>(character.Character.ControllerConfig);
@@ -119,7 +141,7 @@ namespace Samples.HelloNetcode
                 //the world transform isn't).
                 RigidTransform ccTransform = new RigidTransform()
                 {
-                    pos = character.Transform.LocalPosition,
+                    pos = character.Transform.ValueRO.Position,
                     rot = quaternion.identity
                 };
 
@@ -135,10 +157,14 @@ namespace Samples.HelloNetcode
                 m_MarkerGroundCheck.End();
 
                 float2 input = character.Input.Movement;
-                float3 wantedMove = new float3(input.x, 0, input.y) * controllerConfig.Speed * SystemAPI.Time.DeltaTime;
+                float3 wantedMove = new float3(input.x, 0, input.y) * controllerConfig.MoveSpeed * SystemAPI.Time.DeltaTime;
+
+                var characterRotation = quaternion.RotateY(character.Input.Yaw);
+                // The character controllers yaw rotation can always be set, even when in the air:
+                character.Transform.ValueRW.Rotation = characterRotation;
 
                 // Wanted movement is relative to camera
-                wantedMove = math.rotate(quaternion.RotateY(character.Input.Yaw), wantedMove);
+                wantedMove = math.rotate(characterRotation, wantedMove);
 
                 float3 wantedVelocity = wantedMove / SystemAPI.Time.DeltaTime;
                 wantedVelocity.y = character.Character.Velocity.y;
@@ -171,8 +197,20 @@ namespace Samples.HelloNetcode
                 m_MarkerStep.End();
 
                 // Set the physics velocity and let physics move the kinematic object based on that
-                character.Velocity.Linear = (ccTransform.pos - character.Transform.LocalPosition) / SystemAPI.Time.DeltaTime;
+                character.Velocity.Linear = (ccTransform.pos - character.Transform.ValueRO.Position) / SystemAPI.Time.DeltaTime;
             }
+            commandBuffer.Playback(state.EntityManager);
+        }
+
+        /// <summary>
+        /// As we run before <see cref="PhysicsInitializeGroup"/> it is possible to execute before any physics bodies
+        /// has been initialized.
+        ///
+        /// There may be a better way to do this.
+        /// </summary>
+        static bool HasPhysicsWorldBeenInitialized(PhysicsWorldSingleton physicsWorldSingleton)
+        {
+            return physicsWorldSingleton.PhysicsWorld.Bodies is { IsCreated: true, Length: > 0 };
         }
     }
 }

@@ -2,15 +2,6 @@ using System.Collections.Generic;
 using Unity.Entities;
 using UnityEngine;
 
-public interface IReceiveEntity
-{
-}
-
-public struct SentEntity : IBufferElementData
-{
-    public Entity Target;
-}
-
 public class EntitySender : MonoBehaviour
 {
     public GameObject[] EntityReceivers;
@@ -19,7 +10,8 @@ public class EntitySender : MonoBehaviour
     {
         public override void Bake(EntitySender authoring)
         {
-            var sentEntities = AddBuffer<SentEntity>();
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            var sentEntities = AddBuffer<SentEntity>(entity);
             foreach (var entityReceiver in authoring.EntityReceivers)
             {
                 List<MonoBehaviour> potentialReceivers = new List<MonoBehaviour>();
@@ -28,10 +20,22 @@ public class EntitySender : MonoBehaviour
                 {
                     if (potentialReceiver is IReceiveEntity)
                     {
-                        sentEntities.Add(new SentEntity() {Target = GetEntity(entityReceiver)});
+                        sentEntities.Add(new SentEntity()
+                        {
+                            Target = GetEntity(entityReceiver, TransformUsageFlags.Dynamic)
+                        });
                     }
                 }
             }
         }
     }
+}
+
+public interface IReceiveEntity
+{
+}
+
+public struct SentEntity : IBufferElementData
+{
+    public Entity Target;
 }

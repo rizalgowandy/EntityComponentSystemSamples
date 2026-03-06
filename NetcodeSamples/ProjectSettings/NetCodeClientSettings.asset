@@ -16,6 +16,5 @@ MonoBehaviour:
     ExcludedBakingSystemAssemblies:
     - {fileID: 5897886265953266890, guid: b7d127909f4a04725b3edab4d8700bed, type: 3}
     - {fileID: 5897886265953266890, guid: 78161aee92fd144059f0fc99d4018d7b, type: 3}
-  AdditionalScriptingDefines:
-  - FRONTEND_PLAYER_BUILD
-  - UNITY_CLIENT
+  AdditionalScriptingDefines: []
+  ClientTarget: 1

@@ -1,9 +1,9 @@
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Physics.Authoring;
 using Unity.Physics.Extensions;
 using Unity.Physics.Systems;
 using UnityEngine;
+using UnityEngine.Scripting;
 
 public struct MultiWorldMousePickerTag : IComponentData {}
 
@@ -13,7 +13,8 @@ public class MultiWorldMousePicker : MonoBehaviour
     {
         public override void Bake(MultiWorldMousePicker authoring)
         {
-            AddComponent<MultiWorldMousePickerTag>();
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent<MultiWorldMousePickerTag>(entity);
         }
     }
 }
@@ -29,14 +30,17 @@ public partial class MultiWorldMousePickerGroup : CustomPhysicsSystemGroup
     protected override void OnCreate()
     {
         base.OnCreate();
+
+        RequireForUpdate<MultiWorldMousePickerTag>();
+
         m_MousePickerSpringRef = new NativeReference<MousePickSystem.SpringData>(Allocator.Persistent);
         m_MousePickerSpringRef.Value = new MousePickSystem.SpringData {};
-        RequireForUpdate<MultiWorldMousePickerTag>();
     }
 
     protected override void OnDestroy()
     {
         m_MousePickerSpringRef.Dispose();
+
         base.OnDestroy();
     }
 
@@ -52,17 +56,11 @@ public partial class MultiWorldMousePickerGroup : CustomPhysicsSystemGroup
     {
         base.PreGroupUpdateCallback();
         SwitchMousePickerState();
-
-        // Enable debug display clean in this group - since it updates before main physics.
-        World.GetExistingSystemManaged<CleanPhysicsDebugDataSystem>().Enabled = true;
     }
 
     protected override void PostGroupUpdateCallback()
     {
         base.PostGroupUpdateCallback();
         SwitchMousePickerState();
-
-        //// Disable debug display for main physics - since it updates after this group.
-        World.GetExistingSystemManaged<CleanPhysicsDebugDataSystem>().Enabled = false;
     }
 }

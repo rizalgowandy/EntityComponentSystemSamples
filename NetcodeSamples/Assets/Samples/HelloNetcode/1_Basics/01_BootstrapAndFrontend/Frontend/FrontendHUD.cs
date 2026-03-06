@@ -4,23 +4,42 @@ using UnityEngine.SceneManagement;
 using Unity.Entities;
 using Unity.NetCode;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using Unity.Services.Multiplayer;
+using UnityEngine.UI;
 
 namespace Samples.HelloNetcode
 {
     public class FrontendHUD : MonoBehaviour
     {
+        [SerializeField]
+        UnityEngine.EventSystems.EventSystem m_EventSystem;
+
+        public Text LobbyName;
+
         public string ConnectionStatus
         {
             get { return m_ConnectionLabel.text; }
-            set { m_ConnectionLabel.text = value; }
+            set { if (!m_ConnectionLabel.IsDestroyed()) m_ConnectionLabel.text = value; }
         }
 
-        Label m_ConnectionLabel;
-        Button m_MainMenuButton;
+        [SerializeField]
+        Text m_ConnectionLabel;
 
         public void ReturnToFrontend()
         {
+            Debug.Log("[ReturnToFrontend] Called.");
+
+            if (MultiplayerService.Instance != null)
+            {
+                foreach (var session in MultiplayerService.Instance.Sessions)
+                {
+                    Debug.Log($"[ReturnToFrontend] Leaving {session.Value.Id}");
+                    session.Value.LeaveAsync();
+                }
+            }
+
+            // Session destroys the server world but server destruction will also be covered here when not using sessions.
+            // Client world will always need to be destroyed
             var clientServerWorlds = new List<World>();
             foreach (var world in World.All)
             {
@@ -29,44 +48,31 @@ namespace Samples.HelloNetcode
             }
 
             foreach (var world in clientServerWorlds)
+            {
+                Debug.Log($"Disposing World {world.Name}");
                 world.Dispose();
+            }
 
             if (string.IsNullOrEmpty(Frontend.OldFrontendWorldName))
                 Frontend.OldFrontendWorldName = "DefaultWorld";
             ClientServerBootstrap.CreateLocalWorld(Frontend.OldFrontendWorldName);
-            SceneManager.LoadScene("Frontend");
-        }
-
-        void ReturnButtonClicked(ClickEvent evt)
-        {
-            ReturnToFrontend();
-        }
-
-        void OnEnable()
-        {
-            var rootVisualElement = GetComponent<UIDocument>().rootVisualElement;
-            m_ConnectionLabel = rootVisualElement.Query<Label>("label");
-            m_MainMenuButton = rootVisualElement.Query<Button>("button");
-            m_MainMenuButton.RegisterCallback<ClickEvent>(ReturnButtonClicked);
-        }
-
-        void OnDisable()
-        {
-            m_MainMenuButton.UnregisterCallback<ClickEvent>(ReturnButtonClicked);
+            SceneManager.LoadScene(Frontend.SceneName, LoadSceneMode.Single);
         }
 
         public void Start()
         {
-            foreach (var world in World.All)
+            if (ClientServerBootstrap.ClientWorld != null)
             {
-                if (world.IsClient() && !world.IsThinClient())
-                {
-                    var sys = world.GetOrCreateSystemManaged<FrontendHUDSystem>();
-                    sys.UIBehaviour = this;
-                    var simGroup = world.GetExistingSystemManaged<SimulationSystemGroup>();
-                    simGroup.AddSystemToUpdateList(sys);
-                }
+                var sys = ClientServerBootstrap.ClientWorld.GetOrCreateSystemManaged<FrontendHUDSystem>();
+                sys.UIBehaviour = this;
+                var simGroup = ClientServerBootstrap.ClientWorld.GetExistingSystemManaged<SimulationSystemGroup>();
+                simGroup.AddSystemToUpdateList(sys);
             }
+
+            // We must always have an event system (DOTS-7177), but some scenes will already have one,
+            // so we only enable ours if we can't find someone else's.
+            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+                m_EventSystem.gameObject.SetActive(true);
         }
     }
 
@@ -77,24 +83,30 @@ namespace Samples.HelloNetcode
     {
         public FrontendHUD UIBehaviour;
         string m_PingText;
+        DateTime m_LastDisconnectTime;
 
         protected override void OnUpdate()
         {
             CompleteDependency();
             if (!SystemAPI.TryGetSingletonEntity<NetworkStreamConnection>(out var connectionEntity))
             {
-                UIBehaviour.ConnectionStatus = "Not connected!";
+                if (m_LastDisconnectTime == default)
+                {
+                    m_LastDisconnectTime = DateTime.Now;
+                }
+                UIBehaviour.ConnectionStatus = $"Not connected! [{DateTime.Now.Subtract(m_LastDisconnectTime)}]";
                 m_PingText = default;
             }
             else
             {
+                m_LastDisconnectTime = default;
                 var connection = EntityManager.GetComponentData<NetworkStreamConnection>(connectionEntity);
                 var address = SystemAPI.GetSingletonRW<NetworkStreamDriver>().ValueRO.GetRemoteEndPoint(connection).Address;
-                if (EntityManager.HasComponent<NetworkIdComponent>(connectionEntity))
+                if (EntityManager.HasComponent<NetworkId>(connectionEntity))
                 {
                     if (string.IsNullOrEmpty(m_PingText) || UnityEngine.Time.frameCount % 30 == 0)
                     {
-                        var networkSnapshotAck = EntityManager.GetComponentData<NetworkSnapshotAckComponent>(connectionEntity);
+                        var networkSnapshotAck = EntityManager.GetComponentData<NetworkSnapshotAck>(connectionEntity);
                         m_PingText = networkSnapshotAck.EstimatedRTT > 0 ? $"{(int)networkSnapshotAck.EstimatedRTT}ms" : "Connected";
                     }
 

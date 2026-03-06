@@ -1,14 +1,16 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.NetCode.Samples.Common;
 using UnityEngine;
 
-[GhostComponent(PrefabType=GhostPrefabType.AllPredicted)]
 public struct CubeInput : IInputComponentData
 {
     public int Horizontal;
     public int Vertical;
+
+    public FixedString512Bytes ToFixedString() => $"→{Horizontal} ↑{Vertical}";
 }
 
 [DisallowMultipleComponent]
@@ -18,7 +20,8 @@ public class CubeInputAuthoring : MonoBehaviour
     {
         public override void Bake(CubeInputAuthoring authoring)
         {
-            AddComponent<CubeInput>();
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent<CubeInput>(entity);
         }
     }
 }
@@ -29,11 +32,7 @@ public partial struct SampleCubeInput : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<NetworkStreamInGame>();
-        state.RequireForUpdate<NetCubeSpawner>();
-    }
-
-    public void OnDestroy(ref SystemState state)
-    {
+        state.RequireForUpdate<CubeSpawner>();
     }
 
     public void OnUpdate(ref SystemState state)

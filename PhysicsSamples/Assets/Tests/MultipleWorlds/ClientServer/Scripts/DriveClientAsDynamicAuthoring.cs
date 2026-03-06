@@ -10,43 +10,43 @@ public class DriveClientAsDynamicBaker : Baker<DriveClientAsDynamicAuthoring>
 {
     public override void Bake(DriveClientAsDynamicAuthoring authoring)
     {
-        AddComponent(new DriveClientAsDynamic {});
+        var entity = GetEntity(TransformUsageFlags.Dynamic);
+        AddComponent(entity, new DriveClientAsDynamic {});
     }
 }
 
 [UpdateInGroup(typeof(InitializationSystemGroup))]
-public partial class DriveClientAsDynamicSystem : SystemBase
+public partial struct DriveClientAsDynamicSystem : ISystem
 {
     internal ComponentLookup<DriveClientAsDynamic> m_DriveClientAsDynamic;
     internal ComponentLookup<PhysicsCollider> m_PhysicsCollider;
     internal ComponentLookup<PhysicsGravityFactor> m_GravityFactor;
     internal ComponentLookup<PhysicsMass> m_PhysicsMass;
 
-    protected override void OnCreate()
+    public void OnCreate(ref SystemState state)
     {
-        base.OnCreate();
-        m_DriveClientAsDynamic = GetComponentLookup<DriveClientAsDynamic>(true);
-        m_PhysicsCollider = GetComponentLookup<PhysicsCollider>(true);
-        m_GravityFactor = GetComponentLookup<PhysicsGravityFactor>(false);
-        m_PhysicsMass = GetComponentLookup<PhysicsMass>(true);
-        RequireForUpdate<DriveClientAsDynamic>();
+        m_DriveClientAsDynamic = state.GetComponentLookup<DriveClientAsDynamic>(true);
+        m_PhysicsCollider = state.GetComponentLookup<PhysicsCollider>(true);
+        m_GravityFactor = state.GetComponentLookup<PhysicsGravityFactor>(false);
+        m_PhysicsMass = state.GetComponentLookup<PhysicsMass>(true);
+        state.RequireForUpdate<DriveClientAsDynamic>();
     }
 
-    protected override void OnUpdate()
+    public void OnUpdate(ref SystemState state)
     {
         var commandBufferSingleton = SystemAPI.GetSingleton<BeginFixedStepSimulationEntityCommandBufferSystem.Singleton>();
-        var commandBuffer = commandBufferSingleton.CreateCommandBuffer(World.Unmanaged);
-        m_DriveClientAsDynamic.Update(this);
-        m_PhysicsCollider.Update(this);
-        m_GravityFactor.Update(this);
-        m_PhysicsMass.Update(this);
+        var commandBuffer = commandBufferSingleton.CreateCommandBuffer(state.World.Unmanaged);
+        m_DriveClientAsDynamic.Update(ref state);
+        m_PhysicsCollider.Update(ref state);
+        m_GravityFactor.Update(ref state);
+        m_PhysicsMass.Update(ref state);
 
         foreach (var(proxyDriver, client) in SystemAPI.Query<RefRO<CustomPhysicsProxyDriver>>().WithEntityAccess())
         {
             if (m_DriveClientAsDynamic.TryGetComponent(proxyDriver.ValueRO.rootEntity, out DriveClientAsDynamic driveClientAsDynamic))
             {
                 commandBuffer.RemoveComponent<DriveClientAsDynamic>(proxyDriver.ValueRO.rootEntity);
-                commandBuffer.AddComponent(client, new Simulate {});
+                commandBuffer.AddComponent(client, new Simulate());
 
                 var serverMass = m_PhysicsMass[proxyDriver.ValueRO.rootEntity];
                 if (serverMass.IsKinematic)

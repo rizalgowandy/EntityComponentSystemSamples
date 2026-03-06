@@ -12,7 +12,7 @@ using static Unity.Physics.Extensions.PhysicsSamplesExtensions;
 
 namespace Unity.Physics.Extensions
 {
-    public struct MouseHover : IComponentData, IEquatable<MouseHover>
+    public class MouseHover : IComponentData
     {
         public bool IgnoreTriggers;
         public bool IgnoreStatic;
@@ -20,27 +20,7 @@ namespace Unity.Physics.Extensions
         public Entity CurrentEntity;
         public Entity HoverEntity;
         public MaterialMeshInfo OriginalMeshInfo;
-
-        public bool Equals(MouseHover other) =>
-            Equals(PreviousEntity, other.PreviousEntity)
-            && Equals(CurrentEntity, other.CurrentEntity)
-            && Equals(OriginalMeshInfo, other.OriginalMeshInfo)
-            && Equals(HoverEntity, other.HoverEntity);
-
-        public override bool Equals(object obj) => obj is MouseHover other && Equals(other);
-
-        public override int GetHashCode() =>
-            unchecked((int)math.hash(new int4x2(
-                new int4(
-                    IgnoreTriggers ? 1 : 0,
-                    IgnoreStatic ? 1 : 0,
-                    PreviousEntity.GetHashCode(),
-                    CurrentEntity.GetHashCode()),
-                new int4(
-                    HoverEntity != Entity.Null ? HoverEntity.GetHashCode() : 0,
-                    OriginalMeshInfo.GetHashCode(),
-                    0, 0))
-            ));
+        public RenderMeshArray OriginalRenderMeshes;
     }
 
     [DisallowMultipleComponent]
@@ -50,6 +30,7 @@ namespace Unity.Physics.Extensions
         public bool IgnoreTriggers = true;
         public bool IgnoreStatic = true;
 
+        // Note: override OnEnable to be able to disable the component in the editor
         protected void OnEnable() {}
     }
 
@@ -57,13 +38,14 @@ namespace Unity.Physics.Extensions
     {
         public override void Bake(MouseHoverAuthoring authoring)
         {
-            AddComponent(new MouseHover()
+            var entity = GetEntity(TransformUsageFlags.None);
+            AddComponentObject(entity, new MouseHover()
             {
                 PreviousEntity = Entity.Null,
                 CurrentEntity = Entity.Null,
                 IgnoreTriggers = authoring.IgnoreTriggers,
                 IgnoreStatic = authoring.IgnoreStatic,
-                HoverEntity = GetEntity(authoring.HoverPrefab),
+                HoverEntity = GetEntity(authoring.HoverPrefab, TransformUsageFlags.None),
             });
         }
     }
@@ -86,9 +68,11 @@ namespace Unity.Physics.Extensions
 
             public void Execute()
             {
-                var mousePickCollector = new MousePickCollector(1.0f, CollisionWorld.Bodies, CollisionWorld.NumDynamicBodies);
-                mousePickCollector.IgnoreTriggers = IgnoreTriggers;
-                mousePickCollector.IgnoreStatic = IgnoreStatic;
+                var mousePickCollector = new MousePickCollector(CollisionWorld.NumDynamicBodies)
+                {
+                    IgnoreTriggers = IgnoreTriggers,
+                    IgnoreStatic = IgnoreStatic
+                };
 
                 if (CollisionWorld.CastRay(RayInput, ref mousePickCollector))
                 {
@@ -176,7 +160,6 @@ namespace Unity.Physics.Extensions
                         if (colliderKeyEntityPairBuffers.HasBuffer(bodyEntity))
                         {
                             var colliderKeyEntityBuffer = colliderKeyEntityPairBuffers[bodyEntity];
-                            // TODO: Faster lookup option?
                             for (int i = 0; i < colliderKeyEntityBuffer.Length; i++)
                             {
                                 var bufferColliderKey = colliderKeyEntityBuffer[i].Key;
@@ -252,6 +235,24 @@ namespace Unity.Physics.Extensions
                 renderEntity = SystemAPI.GetComponent<PhysicsRenderEntity>(renderEntity).Entity;
             }
 
+            // If no render info is found on the located render entity, we try to find any child which has render info
+            if (renderEntity != Entity.Null && !EntityManager.HasComponent<MaterialMeshInfo>(renderEntity))
+            {
+                // No render information on this entity. Try to find the actual render entity in the hierarchy.
+                if (EntityManager.HasBuffer<Child>(renderEntity))
+                {
+                    var children = EntityManager.GetBuffer<Child>(renderEntity);
+                    foreach (var childElement in children)
+                    {
+                        // find the first child with render info
+                        if (EntityManager.HasComponent<MaterialMeshInfo>(childElement.Value))
+                        {
+                            renderEntity = childElement.Value;
+                        }
+                    }
+                }
+            }
+
             return renderEntity;
         }
 
@@ -267,8 +268,11 @@ namespace Unity.Physics.Extensions
                 Filter = CollisionFilter.Default,
             };
 
-            var mouseHoverEntity = SystemAPI.GetSingletonEntity<MouseHover>();
-            var mouseHover = EntityManager.GetComponentData<MouseHover>(mouseHoverEntity);
+            var mouseHover = SystemAPI.ManagedAPI.GetSingleton<MouseHover>();
+
+            // gracefully handle the case where no hover entity is provided for swapping out the render material
+            if (mouseHover.HoverEntity == Entity.Null)
+                return;
 
             RaycastHit hit;
             using (var raycastHitRef = new NativeReference<RaycastHit>(Allocator.TempJob))
@@ -298,7 +302,9 @@ namespace Unity.Physics.Extensions
 
             if (hasPreviousEntity && EntityManager.HasComponent<MaterialMeshInfo>(mouseHover.PreviousEntity))
             {
-                EntityManager.SetComponentData<MaterialMeshInfo>(mouseHover.PreviousEntity, mouseHover.OriginalMeshInfo);
+                // restore render info to original in the last entity we were hovering over
+                EntityManager.SetComponentData(mouseHover.PreviousEntity, mouseHover.OriginalMeshInfo);
+                EntityManager.SetSharedComponentManaged(mouseHover.PreviousEntity, mouseHover.OriginalRenderMeshes);
             }
 
             if (hasCurrentEntity && EntityManager.HasComponent<MaterialMeshInfo>(mouseHover.CurrentEntity) && EntityManager.HasComponent<RenderMeshArray>(mouseHover.CurrentEntity))
@@ -306,14 +312,24 @@ namespace Unity.Physics.Extensions
                 mouseHover.PreviousEntity = mouseHover.CurrentEntity;
                 mouseHover.CurrentEntity = graphicsEntity;
                 mouseHover.OriginalMeshInfo = EntityManager.GetComponentData<MaterialMeshInfo>(mouseHover.CurrentEntity);
+                mouseHover.OriginalRenderMeshes = EntityManager.GetSharedComponentManaged<RenderMeshArray>(mouseHover.CurrentEntity);
 
-                MaterialMeshInfo newMeshInfo = EntityManager.GetComponentData<MaterialMeshInfo>(mouseHover.HoverEntity);
-                newMeshInfo.Mesh = mouseHover.OriginalMeshInfo.Mesh;
+                // get render info from the hover entity
+                var hoverMeshInfo = EntityManager.GetComponentData<MaterialMeshInfo>(mouseHover.HoverEntity);
+                var hoverRenderMeshes = EntityManager.GetSharedComponentManaged<RenderMeshArray>(mouseHover.HoverEntity);
 
-                EntityManager.SetComponentData<MaterialMeshInfo>(mouseHover.CurrentEntity, newMeshInfo);
+                // create new render info for the current entity that we hover over:
+
+                // use the materials from the hover entity, but the meshes from the current entity
+                var newRenderMeshes = new RenderMeshArray(hoverRenderMeshes.MaterialReferences, mouseHover.OriginalRenderMeshes.MeshReferences);
+
+                // use the material id from the hover entity, but the mesh id from the current entity
+                var newMeshInfo = MaterialMeshInfo.FromRenderMeshArrayIndices(hoverMeshInfo.Material, mouseHover.OriginalMeshInfo.Mesh);
+
+                // apply the new render info to the current entity
+                EntityManager.SetComponentData(mouseHover.CurrentEntity, newMeshInfo);
+                EntityManager.SetSharedComponentManaged(mouseHover.CurrentEntity, newRenderMeshes);
             }
-
-            EntityManager.SetComponentData(mouseHoverEntity, mouseHover);
         }
     }
 }

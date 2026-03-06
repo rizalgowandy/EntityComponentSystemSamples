@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
-namespace Unity.Physics.Samples.Test
+namespace Unity.Physics.Tests
 {
     interface IDeterminismTestSystem
     {
@@ -118,10 +118,7 @@ namespace Unity.Physics.Samples.Test
             "InitTestScene", "LoaderScene", "SingleThreadedRagdoll",
 
             // Removing 1c. Conversion since it has no ECS data, it would cause timeouts in EndToEndDeterminismTest
-            "1c. Conversion",
-
-            // These demos do some verifications that would currently fail with UP
-            "AllMotors.unity"
+            "1c. Conversion"
         };
 
         protected static IEnumerable GetScenes()
@@ -285,7 +282,7 @@ namespace Unity.Physics.Samples.Test
 
                 Assert.AreEqual(numBodies, numSame, "Not all bodies have the same transform!");
 
-                LogAssert.NoUnexpectedReceived();
+                VerifyConsoleMessages.VerifyPrintedMessages(scenePath);
             }
         }
     }

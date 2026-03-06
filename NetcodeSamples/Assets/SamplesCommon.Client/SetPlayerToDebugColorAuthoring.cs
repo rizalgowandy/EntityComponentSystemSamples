@@ -1,5 +1,6 @@
 ﻿using System;
 using Unity.Entities;
+using Unity.Rendering;
 
 namespace Unity.NetCode.Samples.Common
 {
@@ -16,7 +17,9 @@ namespace Unity.NetCode.Samples.Common
             public override void Bake(SetPlayerToDebugColorAuthoring authoring)
             {
                 SetPlayerToDebugColor component = default(SetPlayerToDebugColor);
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
+                AddComponent(entity, new URPMaterialPropertyBaseColor {Value = 1});
             }
         }
     }

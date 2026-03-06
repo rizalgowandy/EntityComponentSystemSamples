@@ -36,12 +36,12 @@ namespace Unity.NetCode.Samples.PlayerList
         {
             var desiredUsername = SystemAPI.GetSingletonRW<DesiredUsername>().ValueRW;
             var netDebug = SystemAPI.GetSingleton<NetDebug>();
-            var localPlayerNetworkId = SystemAPI.GetSingleton<NetworkIdComponent>().Value;
+            var localPlayerNetworkId = SystemAPI.GetSingleton<NetworkId>().Value;
             var players = SystemAPI.GetSingletonBuffer<PlayerListBufferEntry>();
             ref var entry = ref GetOrCreateEntry(players, localPlayerNetworkId);
 
             netDebug.DebugLog($"Client {localPlayerNetworkId} has connected, so sending their DesiredUsername '{desiredUsername.Value}' to the server!");
-            SendUsernameRpc(state, ref desiredUsername, ref entry, "SetUsernameRpc");
+            SendUsernameRpc(ref state, ref desiredUsername, ref entry, "SetUsernameRpc");
         }
 
         [BurstCompile]
@@ -60,11 +60,11 @@ namespace Unity.NetCode.Samples.PlayerList
             }
 
             state.RequireForUpdate<EnablePlayerListsFeature>();
-            state.RequireForUpdate<NetworkIdComponent>();
+            state.RequireForUpdate<NetworkId>();
 
             var componentTypes = new NativeArray<ComponentType>(2, Allocator.Temp);
             componentTypes[0] = ComponentType.ReadWrite<PlayerListEntry.ClientRegisterUsernameRpc>();
-            componentTypes[1] = ComponentType.ReadWrite<SendRpcCommandRequestComponent>();
+            componentTypes[1] = ComponentType.ReadWrite<SendRpcCommandRequest>();
             m_UsernameRpcArchetype = state.EntityManager.CreateArchetype(componentTypes);
             componentTypes.Dispose();
 
@@ -72,15 +72,10 @@ namespace Unity.NetCode.Samples.PlayerList
         }
 
         [BurstCompile]
-        public void OnDestroy(ref SystemState state)
-        {
-        }
-
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var netDebug = SystemAPI.GetSingleton<NetDebug>();
-            var localPlayerNetworkId = SystemAPI.GetSingleton<NetworkIdComponent>().Value;
+            var localPlayerNetworkId = SystemAPI.GetSingleton<NetworkId>().Value;
             var players = SystemAPI.GetSingletonBuffer<PlayerListBufferEntry>();
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>().CreateCommandBuffer(state.WorldUnmanaged);
 
@@ -92,7 +87,7 @@ namespace Unity.NetCode.Samples.PlayerList
                 if (localPlayerEntry.State.Username.Value != desiredUsername.Value)
                 {
                     netDebug.DebugLog($"Client {localPlayerNetworkId} has changed their DesiredUsername '{desiredUsername.Value}', so notifying server of change.");
-                    SendUsernameRpc(state, ref desiredUsername, ref localPlayerEntry, "NotifyUsernameChangedRpc");
+                    SendUsernameRpc(ref state, ref desiredUsername, ref localPlayerEntry, "NotifyUsernameChangedRpc");
                 }
             }
 
@@ -125,7 +120,7 @@ namespace Unity.NetCode.Samples.PlayerList
             }
         }
 
-        void SendUsernameRpc(SystemState state, ref DesiredUsername desiredUsername, ref PlayerListEntry localPlayerEntry, in FixedString64Bytes rpcName)
+        void SendUsernameRpc(ref SystemState state, ref DesiredUsername desiredUsername, ref PlayerListEntry localPlayerEntry, in FixedString64Bytes rpcName)
         {
             localPlayerEntry.State.Username.Value = desiredUsername.Value = UsernameSanitizer.SanitizeUsername(desiredUsername.Value, localPlayerEntry.State.NetworkId, out _);
 
@@ -138,7 +133,7 @@ namespace Unity.NetCode.Samples.PlayerList
         }
 
         [BurstCompile]
-        [WithAll(typeof(ReceiveRpcCommandRequestComponent))]
+        [WithAll(typeof(ReceiveRpcCommandRequest))]
         public partial struct HandleReceivedStateChangedRpcJob : IJobEntity
         {
             public EntityCommandBuffer ecb;

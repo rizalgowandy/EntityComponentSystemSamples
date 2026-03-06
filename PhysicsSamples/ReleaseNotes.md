@@ -1,7 +1,80 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## [Samples Project for 0.51.0-preview.32] - 2022-06-30
+## [Physics Samples Project for post 1.3.0]
+### Changes
+* Changed the Joints - Parade demo such that the BreakJoint1 MaxImpulse was changed from (10,10,10) to (2,2,2).
+
+### Fixes
+
+## [Physics Samples Project for 1.3.0]
+### Changes
+* Added demo scene `Modify Collider Geometry.unity` demonstrating runtime collider deformations. In the demo, the geometry of various types of colliders are modified via the new `ColliderBakeTransformAuthoring` component, which lets you create cyclic animations during which a game object's collider and its visuals are deformed over time. This is achieved through use of the `Collider.BakeTransform` function, which applies an affine transformation to a collider, correspondingly rotating, translating, scaling and shearing its geometry in the process. 
+* Added support for spring and damping for motors in the custom authoring components. In the motor demos, these fields are used now.
+* Demo scenes with motors now have examples of how to author using built-in components or custom components
+
+### Fixes
+* Modify Runtime - Collision Filter demo: fixed a bug where the render mesh of the cubes was being incorrectly changed to a sphere.
+* Fixed a memory leak in the ColliderBakeTransformSystem caused by the subscene being disposed before the OnDestroy could properly dispose a collider blob
+
+## [Physics Samples Project for 1.2.0]
+### Changes
+* Reorganized the samples, with cleanup of various samples' code and scenes.
+* Added demo scene `Modify Collider Geometry.unity` demonstrating runtime collider deformations. In the demo, the geometry of various types of colliders are modified via the new `ColliderBakeTransformAuthoring` component, which lets you create cyclic animations during which a game object's collider and its visuals are deformed over time. This is achieved through use of the `Collider.BakeTransform` function, which applies an affine transformation to a collider, correspondingly rotating, translating, scaling and shearing its geometry in the process. 
+* Added support for spring and damping for motors in the custom authoring components. In the motor demos, these fields are used now.
+
+## [Physics Samples Project for 1.1.0]
+### Changes
+* Added demo scene `4e. Single Ragdoll` with a GameObject ragdoll created using the built-in physics [Ragdoll Wizard](https://docs.unity3d.com/Manual/wizard-RagdollWizard.html) and simulated using Unity Physics for DOTS on one side and the built-in GameObject physics on the other.
+* Added demo scene `5m. Collider Modifications` to show how to create mesh colliders during runtime
+* Added new API for BlobAssetReference MeshCollider.Create(UnityEngine.Mesh, CollisionFilter, Material) in `Physics_MeshCollider.cs`
+* Added new API for BlobAssetReference MeshCollider.Create(UnityEngine.Mesh.MeshData, CollisionFilter, Material) in `Physics_MeshCollider.cs`
+* Added new API for BlobAssetReference MeshCollider.Create(UnityEngine.Mesh.MeshDataArray, CollisionFilter, Material) in `Physics_MeshCollider.cs`
+* Renamed the `4d. Ragdoll` scene to `4d. Ragdolls` for clarity.
+* The `Mouse Hover Authoring` component was improved and now works also when hovering over physics entities whose rendering components are located in a child entity. Consequently, the previously disabled `Mouse Hover Authoring` component has now been enabled in the `4d. Ragdolls` scene.
+* Added new physics component: Force Unique Collider Authoring to allow built-in colliders to be made unique during baking
+* Updated the `5b. Change Box Collider Size` scene to use the new Physics Force Unique Collider component
+* The `5. Modify` section now has a new section called `5g. Runtime Collider Modifications`.
+* A new demo has been added: `5g1. Change Collider Material - Bouncy Boxes`. This demo instantiates prefabs containing unique colliders and modifies collider blob data during runtime
+* The previously named `5g. Change Collider Filter` demo has been renamed to `5g2. Unique Collider Blob Sharing`. The focus of this demo is how collider data is shared, rather than how the `CollisionFilter` is modified.
+* The `5g2. Unique Collider Blob Sharing` demo uses the new `MakeUnique` method in `SpawnExplosionAuthoring.cs`. The manual management of new colliders is no longer necessary.
+* Moved the `5m. Collider Modification` demo to the `5g. Runtime Collider Modifications` section and renamed it to `5g3. Runtime Collider Creation`
+* Extended the `Motion Properties - Mass` demo with an additional seesaw created using built-in physics authoring components (in grey) alongside the already existing
+seesaw that uses custom physics authoring components (in yellow).
+* A new demo has been added: `5g4. Runtime Collision Filter Modification`. This demo shows how to modify a CollisionFilter during runtime.
+
+### Fixes
+* Improved system start-up efficiency by not initializing systems that aren't required in the following files:
+  * `Tests/Animation/Scripts/AnimationPhysicsSystem.cs`
+  * `Tests/MultipleWorlds/ClientServer/Scripts/ServerPhysicsSystem.cs`
+  * `Tests/MultipleWorlds/CustomPhysicsGroup/MultiWorldMousePicker.cs`
+  * `Tests/MultipleWorlds/CustomPhysicsGroup/UserWorldCreator.cs`
+* `Tests/SamplesTest/CreatePhysicsPerformanceTests.unity`: Fixed an index out of range bug in the OnUpdate method of the system
+* Fixed bug in demo scene 5c. Change Collider Type where the collider type wasn't being updated'
+* Fixed bug in `QueryTester.cs`, which is used in demos 3a. All Hits Distance Test / 3b. Cast Test / 3c. Closest Hit Distance Test, where debug draw lines were not drawing the results of the queries. Any system using drawing features of the PhysicsDebugDisplaySystem must update this system within the PhysicsDebugDisplayGroup.
+
+## [Physics Samples Project for 1.0.0]
+
+* Added automatic import of _Custom Physics Authoring_ experience: <br> The custom physics authoring experience, built around the `PhysicsBodyAuthoring` and `PhysicsShapeAuthoring` components, is no longer embedded in the Unity Physics package API. Instead it is provided as a Unity Physics package sample called _Custom Physics Authoring_. This sample is now automatically imported into the PhysicsSamples project under `Assets/Samples/Unity Physics/<package version>/Custom Physics Authoring`. If you want to update the Unity Physics package in the PhysicsSamples project make sure to import the new version of this sample using the Package Manager under the _Samples_ tab after the update and then delete the previous version of this sample from the project. 
+
+## [Physics Samples Project for 1.0.0-pre.15]
+### Changes
+* Added demo scenes for new motor joints under `Assets/Demos/4. Joints/4c. Motors`.
+* Added `SimulationValidationAuthoring` component for physics behavior validation testing, which can be used to confirm that joints behave as expected and that rigid bodies are at rest if desired.
+* Added simulation validation to the following PlayMode tests in the `Assets` folder:
+  * `Tests/Stacking/BasicStacks.unity`
+  * `Tests/JointTest/LimitedHinge/LimitedHingeSub.unity`
+  * `Tests/JointTest/Prismatic.unity`
+  * `Tests/JointTest/Hinge.unity`
+  * `Demos/4. Joints/4a. Joints Parade/4a. Joints Parade SubScene.unity`
+  * `Demos/4. Joints/4c. Motors/4c3. Linear Velocity Motor.unity`
+  * `Demos/4. Joints/4c. Motors/4c4. Angular Velocity Motor.unity`
+* Changed base class of systems from SystemBase to ISystem
+### Fixes
+  * `Demos/5. Modify/5f. Change Surface Velocity.unity` fixed a dependency in the DisplayConveyorBeltJob
+### Known Issues
+
+## [Physics Samples Project for 0.51.0-preview.32] - 2022-06-30
 ### Changes
 * Packages:
   * Updated com.unity.physics from `0.50.0-preview.24` to `0.51.0-preview.32`  
@@ -21,7 +94,7 @@ All notable changes to this project will be documented in this file.
 ### Fixes
 ### Known Issues
 
-## [Samples Project for 0.50.0-preview.24] - 2022-03-25
+## [Physics Samples Project for 0.50.0-preview.24] - 2022-03-25
 ### Changes
 * Project:
   * Updated project name from UnityPhysicsSamples to PhysicsSamples.   
@@ -44,7 +117,7 @@ All notable changes to this project will be documented in this file.
   
 ### Known Issues
 
-## [Samples Project for 0.10.0-preview] - 2021-12-31
+## [Physics Samples Project for 0.10.0-preview] - 2021-12-31
 ### Changes
 * Added `ImmediatePhysicsWorldStepper` utility class for running physics simulation immediately on the current thread.
 * Changed `ProjectIntoFutureOnCueSystem` in Pool demo to use `ImmediatePhysicsWorldStepper`.
@@ -55,7 +128,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 ### Fixes
 ### Known Issues
 
-## [Samples Project for 0.9.0-preview.4] - 2021-05-19
+## [Physics Samples Project for 0.9.0-preview.4] - 2021-05-19
 ### Changes
 * Dependencies
   * Updated Data Flow Graph to `0.21.0-preview.1`
@@ -64,7 +137,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 ### Fixes
 ### Known Issues
 
-## [Samples Project for 0.8.0-preview] - 2021-03-26
+## [Physics Samples Project for 0.8.0-preview] - 2021-03-26
 
 ### Changes
 * Dependencies
@@ -83,7 +156,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
     2. Add a `StatefulTriggerEventBufferAuthoring` component to that entity
     3. At runtime, read from the dynamic buffer of `StatefulTriggerEvent`s
 
-## [Samples Project for 0.7.0-preview.3] - 2021-02-24
+## [Physics Samples Project for 0.7.0-preview.3] - 2021-02-24
 
 ### Changes
 
@@ -103,7 +176,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 
 ### Known Issues
 
-## [Samples Project for 0.6.0-preview.3] - 2021-01-18
+## [Physics Samples Project for 0.6.0-preview.3] - 2021-01-18
 
 ### Changes
 * Dependencies
@@ -116,7 +189,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 
 ### Known Issues
 
-## [Samples Project for 0.5.1-preview.2] - 2020-10-14
+## [Physics Samples Project for 0.5.1-preview.2] - 2020-10-14
 
 ### Changes
 
@@ -129,7 +202,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 
 ### Known Issues
 
-## [Samples Project for 0.5.0-preview] - 2020-09-15
+## [Physics Samples Project for 0.5.0-preview] - 2020-09-15
 
 ### Changes
 
@@ -143,7 +216,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 
 * `RaycastCar` demo has issues that sometimes produce NaN values.
 
-## [Samples Project for 0.4.1-preview] - 2020-07-28
+## [Physics Samples Project for 0.4.1-preview] - 2020-07-28
 
 ### Changes
 
@@ -157,7 +230,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Added `5d. Change Velocity` demo showing a local velocity change.
 * Added `5f. Change Surface Velocity` sample highlighting a conveyor belt use case with no moving parts.
 
-## [Samples Project for 0.4.0-preview.5] - 2020-06-18
+## [Physics Samples Project for 0.4.0-preview.5] - 2020-06-18
 
 ### Changes
 
@@ -183,7 +256,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * CharacterController body is now using a `CollisionResponse.None` collision response on its body to avoid reporting duplicated collision/trigger events coming from the physics engine.
 * `Demos/2. Setup/2b. Motion Properties/2b1. Motion Properties - Mass`, `Tests/Pyramids` and a group of demos under `Tests/Stacking` now showcase new solver stabilization features/strengths and weaknesses/trade-offs.
 
-## [Samples Project for 0.3.2-preview] - 2020-04-16
+## [Physics Samples Project for 0.3.2-preview] - 2020-04-16
 
 ### Changes
 
@@ -194,13 +267,13 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Fixed character controller tunnelling issue.
 * Made standalone player quit (with exit code 1) if an exception is caught in BasePhysicsDemo or derived classes.
 
-## [Samples Project for 0.3.1-preview] - 2020-03-19
+## [Physics Samples Project for 0.3.1-preview] - 2020-03-19
 
 ### Changes
 * Fixed a potential character controller tunnelling issue.
 * Removed the Lightweight RP package.
 
-## [Samples Project for 0.3.0-preview] - 2020-03-12
+## [Physics Samples Project for 0.3.0-preview] - 2020-03-12
 
 ### Changes
 
@@ -217,7 +290,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
     * Fixed the support check issue with slopes equal to MaxSlope
     * Fixed the returned support state when there are no supporting planes
 
-## [Samples Project for 0.2.5-preview] - 2019-12-04
+## [Physics Samples Project for 0.2.5-preview] - 2019-12-04
 
 ### Changes
 * Added `CharacterControllerAuthoring.MaxMovementSpeed` to avoid large velocities coming from penetration recovery.
@@ -228,7 +301,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Character controller is now using native lists instead of native arrays for constraints and query hits to avoid large preallocations.
 * Planet gravity sample now correctly randomizes mass of orbiting bodies.
 
-## [Samples Project for 0.2.4-preview] - 2019-09-19
+## [Physics Samples Project for 0.2.4-preview] - 2019-09-19
 
 ### Changes
 
@@ -236,7 +309,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * When opening the Project with Unity `2019.3` below `0b5` it might be required to update the *Lightweight RP* package (com.unity.render-pipelines.lightweight) to version `7.0.1`  and reimport the `Assets/Common` folder.
 
 
-## [Samples Project for 0.2.2-preview] - 2019-09-06
+## [Physics Samples Project for 0.2.2-preview] - 2019-09-06
 
 ### Changes
 
@@ -289,7 +362,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
    - A reimport of the materials might be required when this is done while the Unity Editor is opened.
 
 
-## [Samples Project for 0.2.0-preview] - 2019-07-18
+## [Physics Samples Project for 0.2.0-preview] - 2019-07-18
 
 ### Changes
 
@@ -301,7 +374,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Added a loader scene to more easily test all examples on a device.
 
 
-## [Samples Project for 0.1.0-preview] - 2019-05-31
+## [Physics Samples Project for 0.1.0-preview] - 2019-05-31
 
 ### Changes
 
@@ -333,7 +406,7 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Various tests have been added to confirm API changes and as comparisons for WIP and the upcoming Havok Physics release.
 
 
-## [Samples Project for 0.0.2-preview] - 2019-04-08
+## [Physics Samples Project for 0.0.2-preview] - 2019-04-08
 
 ### Changes
 
@@ -341,6 +414,6 @@ The demo shows different kinematic bars (client-only, dynamic and kinematic ghos
 * Character controller now does another query to check if position returned by the solver can be reached.
 
 
-## [Samples Project for 0.0.1-preview] - 2019-03-12
+## [Physics Samples Project for 0.0.1-preview] - 2019-03-12
 
 * Initial package version and sample project.

@@ -18,7 +18,8 @@ namespace Unity.Physics.Tests
         {
             public override void Bake(VerifyRestitution authoring)
             {
-                AddComponent(new VerifyRestitutionData() { MaxY = 0 });
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, new VerifyRestitutionData() { MaxY = 0 });
             }
         }
     }
@@ -26,37 +27,37 @@ namespace Unity.Physics.Tests
     [UpdateInGroup(typeof(PhysicsSystemGroup))]
     [UpdateBefore(typeof(PhysicsSimulationGroup))]
     [RequireMatchingQueriesForUpdate]
-    public partial class VerifyRestitutionSystem : SystemBase
+    public partial struct VerifyRestitutionSystem : ISystem
     {
-        private bool m_FirstFrame = true;
+        private bool m_FirstFrame;
         double m_StartSeconds;
         const double kCheckSeconds = 0.9;
 
-        void ResetStartTime() => m_StartSeconds = SystemAPI.Time.ElapsedTime;
+        void ResetStartTime(ref SystemState state)
+        {
+            m_StartSeconds = SystemAPI.Time.ElapsedTime;
+        }
 
-        protected override void OnUpdate()
+        public void OnCreate(ref SystemState state)
+        {
+            m_FirstFrame = true;
+        }
+
+        public void OnUpdate(ref SystemState state)
         {
             if (m_FirstFrame)
             {
-                ResetStartTime();
+                ResetStartTime(ref state);
                 m_FirstFrame = false;
             }
 
             double elapsedSeconds = SystemAPI.Time.ElapsedTime - m_StartSeconds;
 
-#if !ENABLE_TRANSFORM_V1
             foreach (var(verifyRestitution, localTransform, velocity, entity) in SystemAPI.Query<RefRW<VerifyRestitutionData>, RefRO<LocalTransform>, RefRO<PhysicsVelocity>>().WithEntityAccess())
-#else
-            foreach (var(verifyRestitution, translation, velocity, entity) in SystemAPI.Query<RefRW<VerifyRestitutionData>, RefRO<Translation>, RefRO<PhysicsVelocity>>().WithEntityAccess())
-#endif
             {
                 if (velocity.ValueRO.Linear.y > 0)
                 {
-#if !ENABLE_TRANSFORM_V1
                     verifyRestitution.ValueRW.MaxY = math.max(verifyRestitution.ValueRW.MaxY, localTransform.ValueRO.Position.y);
-#else
-                    verifyRestitution.ValueRW.MaxY = math.max(verifyRestitution.ValueRW.MaxY, translation.ValueRO.Value.y);
-#endif
                 }
 
                 // the ball shall have reached its apex after a certain amount of time has passed

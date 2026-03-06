@@ -34,9 +34,26 @@ struct BouncySpawnSettings : IComponentData, ISpawnSettings
     public float Restitution;
 }
 
-class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSettings>
+partial class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSettings>
 {
-    private BlobAssetReference<Collider> TweakedCollider;
+    private NativeList<BlobAssetReference<Collider>> m_CollidersToDispose;
+    private BlobAssetReference<Collider> m_CurrentTweakedCollider;
+
+    protected override void OnCreate()
+    {
+        base.OnCreate();
+        m_CollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Persistent);
+    }
+
+    protected override void OnDestroy()
+    {
+        foreach (var collider in m_CollidersToDispose)
+            if (collider.IsCreated)
+                collider.Dispose();
+        m_CollidersToDispose.Dispose();
+        // CurrentTweakedCollider is already in the list to dispose, and does not need to be disposed separately.
+        base.OnDestroy();
+    }
 
     internal override int GetRandomSeed(BouncySpawnSettings spawnSettings)
     {
@@ -50,12 +67,13 @@ class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSe
         base.OnBeforeInstantiatePrefab(ref spawnSettings);
 
         var component = EntityManager.GetComponentData<PhysicsCollider>(spawnSettings.Prefab);
-        TweakedCollider = component.Value.Value.Clone();
-        Assert.IsTrue(TweakedCollider.Value.CollisionType == CollisionType.Convex);
+        m_CurrentTweakedCollider = component.Value.Value.Clone();
+        Assert.IsTrue(m_CurrentTweakedCollider.Value.CollisionType == CollisionType.Convex);
+        m_CollidersToDispose.Add(m_CurrentTweakedCollider);
 
         unsafe
         {
-            ref var cc = ref TweakedCollider.As<ConvexCollider>();
+            ref var cc = ref m_CurrentTweakedCollider.As<ConvexCollider>();
             var material = cc.Material;
             material.Restitution = spawnSettings.Restitution;
             cc.Material = material;
@@ -66,7 +84,7 @@ class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSe
     {
         base.ConfigureInstance(instance, ref spawnSettings);
         var collider = EntityManager.GetComponentData<PhysicsCollider>(instance);
-        collider.Value = TweakedCollider;
+        collider.Value = m_CurrentTweakedCollider;
         EntityManager.SetComponentData(instance, collider);
     }
 }

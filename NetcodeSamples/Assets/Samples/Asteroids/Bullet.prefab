@@ -13,7 +13,6 @@ GameObject:
   - component: {fileID: 7355874651087019441}
   - component: {fileID: -3232764338705290451}
   - component: {fileID: 8842576389108237569}
-  - component: {fileID: 5797329235442628069}
   - component: {fileID: 5785325454680195951}
   - component: {fileID: 3331244637684336934}
   - component: {fileID: 2033488040994855750}
@@ -33,13 +32,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4440235226870903317}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 10, y: 10, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &5807320614624497876
 MonoBehaviour:
@@ -56,13 +55,17 @@ MonoBehaviour:
   DefaultGhostMode: 2
   SupportedGhostModes: 3
   OptimizationMode: 0
-  Importance: 200
+  Importance: 50
+  MaxSendRate: 10
   prefabId: 76e3e5acde5e440efb5fe01af44afc72
   HasOwner: 1
   SupportAutoCommandTarget: 0
   TrackInterpolationDelay: 0
   GhostGroup: 0
   UsePreSerialization: 0
+  UseSingleBaseline: 0
+  RollbackPredictedSpawnedGhostState: 0
+  RollbackPredictionOnStructuralChanges: 1
 --- !u!114 &7355874651087019441
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -77,7 +80,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ComponentOverrides:
   - FullTypeName: Unity.Transforms.LocalTransform
-    GameObject: {fileID: 4440235226870903317}
+    EntityIndex: 0
     PrefabType: -1
     SendTypeOptimization: -1
     VariantHash: 4502119826905864351
@@ -105,19 +108,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a02d0bfe041460eafdbd0af99b85622, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &5797329235442628069
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4440235226870903317}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 617574f4a9c8931469c423d5ea412677, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  radius: 5
 --- !u!114 &5785325454680195951
 MonoBehaviour:
   m_ObjectHideFlags: 0

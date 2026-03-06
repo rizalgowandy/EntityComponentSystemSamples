@@ -11,7 +11,8 @@ public class SoftJointDemo : SceneCreationAuthoring<SoftJointDemoScene>
     {
         public override void Bake(SoftJointDemo authoring)
         {
-            AddComponentObject(new SoftJointDemoScene
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponentObject(entity, new SoftJointDemoScene
             {
                 DynamicMaterial = authoring.DynamicMaterial,
                 StaticMaterial = authoring.StaticMaterial
@@ -20,7 +21,7 @@ public class SoftJointDemo : SceneCreationAuthoring<SoftJointDemoScene>
     }
 }
 
-public class SoftJointDemoCreationSystem : SceneCreationSystem<SoftJointDemoScene>
+public partial class SoftJointDemoCreationSystem : SceneCreationSystem<SoftJointDemoScene>
 {
     public override void CreateScene(SoftJointDemoScene sceneSettings)
     {
@@ -52,7 +53,7 @@ public class SoftJointDemoCreationSystem : SceneCreationSystem<SoftJointDemoScen
                 var constraints = jointData.GetConstraints();
                 var constraint = constraints[0];
                 // Choose a small damping value instead of 0 to improve stability of the joints
-                constraint.SpringDamping = 0.05f;
+                constraint.DampingRatio = 0.05f;
                 constraint.SpringFrequency = 0.5f * (float)(i + 1);
                 constraints[0] = constraint;
                 jointData.SetConstraints(constraints);
@@ -102,7 +103,7 @@ public class SoftJointDemoCreationSystem : SceneCreationSystem<SoftJointDemoScen
                     {
                         var constraint = constraints[k];
                         // Choose a small damping value instead of 0 to improve stability of the joints
-                        constraint.SpringDamping = 0.05f;
+                        constraint.DampingRatio = 0.05f;
                         constraint.SpringFrequency = 0.5f * (i + 1);
                         constraints[k] = constraint;
                     }
@@ -144,7 +145,7 @@ public class SoftJointDemoCreationSystem : SceneCreationSystem<SoftJointDemoScen
             var constraints = jointData.GetConstraints();
             var constraint = constraints[0];
             // Choose a small damping value instead of 0 to improve stability of the joints
-            constraint.SpringDamping = 0.05f;
+            constraint.DampingRatio = 0.05f;
             constraint.SpringFrequency = 5.0f;
             constraints[0] = constraint;
             jointData.SetConstraints(constraints);

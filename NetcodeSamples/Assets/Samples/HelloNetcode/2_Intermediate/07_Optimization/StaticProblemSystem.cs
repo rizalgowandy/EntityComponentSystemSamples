@@ -16,20 +16,17 @@ namespace Samples.HelloNetcode
         protected override void OnUpdate()
         {
             var setup = SystemAPI.GetSingleton<BarrelSetup>();
-            if (!setup.EnableProblem)
+            if (!setup.EnableStaticOptimizationProblem)
             {
                 Enabled = false;
             }
 
-#if !ENABLE_TRANSFORM_V1
+
             /* This is intentionally incorrect. We grab write access to the transform data but never modify it. */
-            Entities.ForEach((ref LocalTransform trans) =>
-#else
-            /* This is intentionally incorrect. We grab write access to the translation data but never modify it. */
-            Entities.ForEach((ref Translation trans) =>
-#endif
+            foreach (var trans in SystemAPI.Query<RefRW<LocalTransform>>())
             {
-            }).Run();
+
+            }
         }
     }
 }

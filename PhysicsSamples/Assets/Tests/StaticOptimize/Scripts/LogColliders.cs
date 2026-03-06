@@ -12,31 +12,32 @@ public class LogColliders : MonoBehaviour
     {
         public override void Bake(LogColliders authoring)
         {
-            AddComponent<ActivateColliderLogging>();
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent<ActivateColliderLogging>(entity);
         }
     }
 }
 
 [RequireMatchingQueriesForUpdate]
-partial class LogCollidersSystem : SystemBase
+partial struct LogCollidersSystem : ISystem
 {
     EntityQuery _ActivateColliderLoggingQuery;
     EntityQuery _ColliderQuery;
     static int _PreviousCount;
 
-    protected override void OnCreate()
+    public void OnCreate(ref SystemState state)
     {
         _ColliderQuery = new EntityQueryBuilder(Allocator.Temp)
             .WithAll<PhysicsCollider>()
             .WithOptions(EntityQueryOptions.IncludePrefab | EntityQueryOptions.IncludeDisabledEntities)
-            .Build(this);
+            .Build(ref state);
 
         _PreviousCount = 0;
 
-        RequireForUpdate<ActivateColliderLogging>();
+        state.RequireForUpdate<ActivateColliderLogging>();
     }
 
-    protected override void OnUpdate()
+    public void OnUpdate(ref SystemState state)
     {
         var newCount = _ColliderQuery.CalculateEntityCount();
         if (newCount == _PreviousCount)
@@ -45,9 +46,9 @@ partial class LogCollidersSystem : SystemBase
         _PreviousCount = newCount;
 
         var entities = _ColliderQuery.ToEntityArray(Allocator.Temp);
-        string str = EntityManager.GetName(entities[0]);
+        string str = state.EntityManager.GetName(entities[0]);
         for (int i = 1; i < entities.Length; ++i)
-            str += $", {EntityManager.GetName(entities[i])}";
+            str += $", {state.EntityManager.GetName(entities[i])}";
 
         Debug.Log($"Found {entities.Length} colliders: {str}");
     }

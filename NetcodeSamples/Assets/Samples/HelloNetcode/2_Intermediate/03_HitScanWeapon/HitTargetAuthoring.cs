@@ -7,7 +7,6 @@ namespace Samples.HelloNetcode
     {
         public float Speed;
         public float MovingRange;
-        public float Moved;
     }
 
     public class HitTargetAuthoring : MonoBehaviour
@@ -22,7 +21,8 @@ namespace Samples.HelloNetcode
                 var component = default(HitTarget);
                 component.Speed = authoring.Speed;
                 component.MovingRange = authoring.MovingRange;
-                AddComponent(component);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                AddComponent(entity, component);
             }
         }
     }

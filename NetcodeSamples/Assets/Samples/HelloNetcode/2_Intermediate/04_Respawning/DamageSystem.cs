@@ -8,28 +8,18 @@ namespace Samples.HelloNetcode
     [UpdateAfter(typeof(ShootingSystem))]
     public partial struct DamageSystem : ISystem
     {
-        public void OnCreate(ref SystemState state)
-        {
-        }
-
-        public void OnDestroy(ref SystemState state)
-        {
-        }
-
         public void OnUpdate(ref SystemState state)
         {
             var healthFromEntity = SystemAPI.GetComponentLookup<Health>();
             foreach (var hit in SystemAPI.Query<RefRW<Hit>>())
             {
-                if (!healthFromEntity.HasComponent(hit.ValueRO.Entity))
+                if (!healthFromEntity.TryGetComponent(hit.ValueRO.Victim, out var health))
                 {
                     continue;
                 }
-
-                var health = healthFromEntity[hit.ValueRO.Entity];
                 health.CurrentHitPoints -= 20;
-                healthFromEntity[hit.ValueRO.Entity] = health;
-                hit.ValueRW.Entity = Entity.Null;
+                healthFromEntity[hit.ValueRO.Victim] = health;
+                hit.ValueRW.Victim = Entity.Null;
             }
         }
     }

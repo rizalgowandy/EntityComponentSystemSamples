@@ -3,7 +3,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Physics;
 using Unity.Physics.Systems;
 using Unity.Transforms;
 using UnityEngine;
@@ -18,24 +17,21 @@ namespace Unity.Physics.Extensions
     {
         public bool IgnoreTriggers;
         public bool IgnoreStatic;
-        public NativeArray<RigidBody> Bodies;
         public int NumDynamicBodies;
 
         public bool EarlyOutOnFirstHit => false;
         public float MaxFraction { get; private set; }
         public int NumHits { get; private set; }
 
-        private RaycastHit m_ClosestHit;
-        public RaycastHit Hit => m_ClosestHit;
+        public RaycastHit Hit;
 
-        public MousePickCollector(float maxFraction, NativeArray<RigidBody> rigidBodies, int numDynamicBodies)
+        public MousePickCollector(int numDynamicBodies, float maxFraction = 1.0f)
         {
-            m_ClosestHit = default(RaycastHit);
+            Hit = default;
             MaxFraction = maxFraction;
             NumHits = 0;
             IgnoreTriggers = true;
             IgnoreStatic = true;
-            Bodies = rigidBodies;
             NumDynamicBodies = numDynamicBodies;
         }
 
@@ -48,11 +44,11 @@ namespace Unity.Physics.Extensions
             var isAcceptable = true;
             if (IgnoreStatic)
             {
-                isAcceptable = isAcceptable && (hit.RigidBodyIndex >= 0) && (hit.RigidBodyIndex < NumDynamicBodies);
+                isAcceptable &= hit.RigidBodyIndex >= 0 && hit.RigidBodyIndex < NumDynamicBodies;
             }
             if (IgnoreTriggers)
             {
-                isAcceptable = isAcceptable && hit.Material.CollisionResponse != CollisionResponsePolicy.RaiseTriggerEvents;
+                isAcceptable &= hit.Material.CollisionResponse != CollisionResponsePolicy.RaiseTriggerEvents;
             }
 
             if (!isAcceptable)
@@ -61,7 +57,7 @@ namespace Unity.Physics.Extensions
             }
 
             MaxFraction = hit.Fraction;
-            m_ClosestHit = hit;
+            Hit = hit;
             NumHits = 1;
             return true;
         }
@@ -73,6 +69,7 @@ namespace Unity.Physics.Extensions
     {
         public bool IgnoreTriggers;
         public bool IgnoreStatic;
+        public bool DeleteEntityOnClick;
     }
 
     [DisallowMultipleComponent]
@@ -80,7 +77,9 @@ namespace Unity.Physics.Extensions
     {
         public bool IgnoreTriggers = true;
         public bool IgnoreStatic = true;
+        public bool DeleteEntityOnClick = false;
 
+        // Note: override OnEnable to be able to disable the component in the editor
         protected void OnEnable() {}
     }
 
@@ -88,10 +87,12 @@ namespace Unity.Physics.Extensions
     {
         public override void Bake(MousePickAuthoring authoring)
         {
-            AddComponent(new MousePick()
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent(entity, new MousePick()
             {
                 IgnoreTriggers = authoring.IgnoreTriggers,
-                IgnoreStatic = authoring.IgnoreStatic
+                IgnoreStatic = authoring.IgnoreStatic,
+                DeleteEntityOnClick = authoring.DeleteEntityOnClick
             });
         }
     }
@@ -107,7 +108,7 @@ namespace Unity.Physics.Extensions
         public struct SpringData
         {
             public Entity Entity;
-            public bool Dragging;
+            public bool Picked;
             public float3 PointOnBody;
             public float MouseDepth;
         }
@@ -121,11 +122,15 @@ namespace Unity.Physics.Extensions
             public float Near;
             public float3 Forward;
             [ReadOnly] public bool IgnoreTriggers;
+            [ReadOnly] public bool IgnoreStatic;
 
             public void Execute()
             {
-                var mousePickCollector = new MousePickCollector(1.0f, CollisionWorld.Bodies, CollisionWorld.NumDynamicBodies);
-                mousePickCollector.IgnoreTriggers = IgnoreTriggers;
+                var mousePickCollector = new MousePickCollector(CollisionWorld.NumDynamicBodies)
+                {
+                    IgnoreTriggers = IgnoreTriggers,
+                    IgnoreStatic = IgnoreStatic
+                };
 
                 if (CollisionWorld.CastRay(RayInput, ref mousePickCollector))
                 {
@@ -138,7 +143,7 @@ namespace Unity.Physics.Extensions
                     SpringDataRef.Value = new SpringData
                     {
                         Entity = hitBody.Entity,
-                        Dragging = true,
+                        Picked = true,
                         PointOnBody = pointOnBody,
                         MouseDepth = Near + math.dot(math.normalize(RayInput.End - RayInput.Start), Forward) * fraction * k_MaxDistance,
                     };
@@ -147,7 +152,7 @@ namespace Unity.Physics.Extensions
                 {
                     SpringDataRef.Value = new SpringData
                     {
-                        Dragging = false
+                        Picked = false
                     };
                 }
             }
@@ -177,7 +182,7 @@ namespace Unity.Physics.Extensions
                 UnityEngine.Ray unityRay = Camera.main.ScreenPointToRay(mousePosition);
 
                 var world = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld;
-
+                var mousePick = SystemAPI.GetSingleton<MousePick>();
                 // Schedule picking job, after the collision world has been built
                 Dependency = new Pick
                 {
@@ -191,7 +196,8 @@ namespace Unity.Physics.Extensions
                     },
                     Near = Camera.main.nearClipPlane,
                     Forward = Camera.main.transform.forward,
-                    IgnoreTriggers = SystemAPI.GetSingleton<MousePick>().IgnoreTriggers,
+                    IgnoreTriggers = mousePick.IgnoreTriggers,
+                    IgnoreStatic = mousePick.IgnoreStatic,
                 }.Schedule(Dependency);
 
                 PickJobHandle = Dependency;
@@ -222,12 +228,8 @@ namespace Unity.Physics.Extensions
 
         protected override void OnUpdate()
         {
-#if !ENABLE_TRANSFORM_V1
             ComponentLookup<LocalTransform> LocalTransforms = GetComponentLookup<LocalTransform>(true);
-#else
-            ComponentLookup<Translation> Positions = GetComponentLookup<Translation>(true);
-            ComponentLookup<Rotation> Rotations = GetComponentLookup<Rotation>(true);
-#endif
+
             ComponentLookup<PhysicsVelocity> Velocities = GetComponentLookup<PhysicsVelocity>();
             ComponentLookup<PhysicsMass> Masses = GetComponentLookup<PhysicsMass>(true);
             ComponentLookup<PhysicsMassOverride> MassOverrides = GetComponentLookup<PhysicsMassOverride>(true);
@@ -240,8 +242,19 @@ namespace Unity.Physics.Extensions
 
             // If there's a picked entity, drag it
             MousePickSystem.SpringData springData = m_PickSystem.SpringDataRef.Value;
-            if (springData.Dragging)
+            if (springData.Picked)
             {
+                var mousePick = SystemAPI.GetSingleton<MousePick>();
+                if (mousePick.DeleteEntityOnClick)
+                {
+                    EntityManager.DestroyEntity(springData.Entity);
+
+                    // reset spring data
+                    m_PickSystem.SpringDataRef.Value = new MousePickSystem.SpringData();
+                    return;
+                }
+                // else:
+
                 Entity entity = springData.Entity;
                 if (!Masses.HasComponent(entity))
                 {
@@ -258,11 +271,9 @@ namespace Unity.Physics.Extensions
                     return;
                 }
 
-#if !ENABLE_TRANSFORM_V1
+
                 var worldFromBody = new MTransform(LocalTransforms[entity].Rotation, LocalTransforms[entity].Position);
-#else
-                var worldFromBody = new MTransform(Rotations[entity].Value, Positions[entity].Value);
-#endif
+
 
                 // Body to motion transform
                 var bodyFromMotion = new MTransform(Masses[entity].InertiaOrientation, Masses[entity].CenterOfMass);
